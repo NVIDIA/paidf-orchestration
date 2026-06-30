@@ -1,0 +1,71 @@
+{{- if and (index .Values "airflowPools") (index .Values.airflowPools "enabled") (index .Values.airflowPools "pools") }}
+apiVersion: batch/v1
+kind: Job
+metadata:
+  name: {{ include "sdg-workflow-controller.fullname" . }}-create-pools
+  namespace: {{ .Release.Namespace }}
+  labels:
+    {{- include "sdg-workflow-controller.labels" . | nindent 4 }}
+    app.kubernetes.io/component: create-pools
+  # The following annotations are Kubernetes Helm hook configurations for the Job:
+  #
+  # - "helm.sh/hook": Tells Helm to run this Job as a hook at specific lifecycle events, e.g. after install or upgrade.
+  #   - post-install: Run after a `helm install`.
+  #   - post-upgrade: Run after a `helm upgrade`.
+  # - "helm.sh/hook-weight": Orders hooks with the same event. Lower is earlier. Here, "5" is a weight value.
+  # - "helm.sh/hook-delete-policy": Controls when Helm deletes the Job resource created by the hook. 
+  #   - before-hook-creation: Delete previous runs of this hook before running again.
+  #   - hook-succeeded: Delete the Job after it completes successfully.
+  annotations:
+    "helm.sh/hook": post-install,post-upgrade
+    "helm.sh/hook-weight": "5"
+    "helm.sh/hook-delete-policy": before-hook-creation,hook-succeeded
+spec:
+  # ttlSecondsAfterFinished specifies how many seconds after the Job completes (succeeds or fails) its Kubernetes resources (pods, etc.) should be retained.
+  # After this time, the Job's pods and other resources will be automatically cleaned up by the cluster.
+  ttlSecondsAfterFinished: 300
+  backoffLimit: 10
+  template:
+    metadata:
+      labels:
+        {{- include "sdg-workflow-controller.selectorLabels" . | nindent 8 }}
+        app.kubernetes.io/component: create-pools
+    spec:
+      restartPolicy: OnFailure
+      {{- with .Values.airflow.imagePullSecrets }}
+      imagePullSecrets:
+        {{- toYaml . | nindent 8 }}
+      {{- end }}
+      containers:
+        - name: create-pools
+          image: {{ .Values.airflow.defaultAirflowRepository }}:{{ .Values.airflow.defaultAirflowTag }}
+          imagePullPolicy: {{ .Values.airflow.images.airflow.pullPolicy | default "IfNotPresent" }}
+          env:
+            - name: AIRFLOW__DATABASE__SQL_ALCHEMY_CONN
+              valueFrom:
+                secretKeyRef:
+                  name: {{ .Values.airflow.data.metadataSecretName }}
+                  key: connection
+          command:
+            - bash
+            - -c
+            - |
+              set -e
+              echo "Waiting for Airflow DB to be reachable..."
+              for i in $(seq 1 30); do
+                if airflow db check 2>/dev/null; then
+                  echo "DB is ready."
+                  break
+                fi
+                if [ "$i" -eq 30 ]; then
+                  echo "Timeout waiting for DB"
+                  exit 1
+                fi
+                sleep 2
+              done
+              echo "Creating Airflow pools..."
+              {{- range .Values.airflowPools.pools }}
+              airflow pools set {{ .name | quote }} {{ .slots }} {{ .description | default "" | quote }}{{- if .includeDeferred }} --include-deferred{{ end }}
+              {{- end }}
+              echo "Pools created successfully."
+{{- end }}

@@ -1,0 +1,50 @@
+{{- if and .Values.global.dags.enabled (eq .Values.global.dags.source "s3") }}
+---
+apiVersion: v1
+kind: PersistentVolumeClaim
+metadata:
+  name: {{ .Values.global.dags.persistence.claimName }}
+  namespace: {{ .Release.Namespace }}
+  labels:
+    {{- include "sdg-workflow-controller.labels" . | nindent 4 }}
+    app.kubernetes.io/component: dags
+spec:
+  accessModes:
+    - {{ .Values.global.dags.persistence.accessMode }}
+  storageClassName: {{ .Values.global.dags.persistence.storageClassName | quote }}
+  resources:
+    requests:
+      storage: {{ .Values.global.dags.persistence.size }}
+---
+apiVersion: v1
+kind: PersistentVolumeClaim
+metadata:
+  name: {{ .Values.global.plugins.persistence.claimName }}
+  namespace: {{ .Release.Namespace }}
+  labels:
+    {{- include "sdg-workflow-controller.labels" . | nindent 4 }}
+    app.kubernetes.io/component: plugins
+spec:
+  accessModes:
+    - {{ .Values.global.plugins.persistence.accessMode }}
+  storageClassName: {{ .Values.global.plugins.persistence.storageClassName | quote }}
+  resources:
+    requests:
+      storage: {{ .Values.global.plugins.persistence.size }}
+---
+apiVersion: v1
+kind: PersistentVolumeClaim
+metadata:
+  name: {{ .Values.global.pythonDependencies.persistence.claimName }}
+  namespace: {{ .Release.Namespace }}
+  labels:
+    {{- include "sdg-workflow-controller.labels" . | nindent 4 }}
+    app.kubernetes.io/component: python-deps
+spec:
+  accessModes:
+    - {{ .Values.global.pythonDependencies.persistence.accessMode }}
+  storageClassName: {{ .Values.global.pythonDependencies.persistence.storageClassName | quote }}
+  resources:
+    requests:
+      storage: {{ .Values.global.pythonDependencies.persistence.size }}
+{{- end }}

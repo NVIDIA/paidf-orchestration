@@ -1,0 +1,79 @@
+{{- /*
+ConfigMap containing Kubernetes Deployment and Service templates used by K8sServiceOperator.
+These templates define how inference endpoints (VLM, LLM) are deployed on a remote K8s cluster.
+Externalizing them allows cluster-specific customization without changing operator code.
+*/ -}}
+apiVersion: v1
+kind: ConfigMap
+metadata:
+  name: {{ include "sdg-workflow-controller.fullname" . }}-k8s-service-templates
+  namespace: {{ .Release.Namespace }}
+  labels:
+    {{- include "sdg-workflow-controller.labels" . | nindent 4 }}
+    app.kubernetes.io/component: k8s-service-templates
+data:
+  deployment.yaml: |
+    apiVersion: apps/v1
+    kind: Deployment
+    metadata:
+      name: __NAME__
+      labels:
+        app: __NAME__
+        managed-by: k8s-service-operator
+    spec:
+      replicas: 1
+      selector:
+        matchLabels:
+          app: __NAME__
+      template:
+        metadata:
+          labels:
+            app: __NAME__
+        spec:
+          {{- with .Values.airflow.imagePullSecrets }}
+          imagePullSecrets:
+            {{- toYaml . | nindent 12 }}
+          {{- end }}
+          containers:
+            - name: main
+              image: __IMAGE__
+              ports:
+                - containerPort: __INFERENCE_PORT__
+              startupProbe:
+                httpGet:
+                  path: __HEALTH_URI__
+                  port: __INFERENCE_PORT__
+                periodSeconds: 10
+                timeoutSeconds: 5
+                failureThreshold: 60
+              livenessProbe:
+                httpGet:
+                  path: __HEALTH_URI__
+                  port: __INFERENCE_PORT__
+                periodSeconds: 10
+                timeoutSeconds: 5
+                failureThreshold: 3
+              readinessProbe:
+                httpGet:
+                  path: __HEALTH_URI__
+                  port: __INFERENCE_PORT__
+                initialDelaySeconds: 30
+                periodSeconds: 10
+                timeoutSeconds: 5
+                failureThreshold: 30
+
+  service.yaml: |
+    apiVersion: v1
+    kind: Service
+    metadata:
+      name: __NAME__
+      labels:
+        app: __NAME__
+        managed-by: k8s-service-operator
+    spec:
+      selector:
+        app: __NAME__
+      ports:
+        - port: __INFERENCE_PORT__
+          targetPort: __INFERENCE_PORT__
+      type: ClusterIP

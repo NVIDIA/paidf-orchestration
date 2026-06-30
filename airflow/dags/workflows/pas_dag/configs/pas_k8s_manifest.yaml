@@ -1,0 +1,144 @@
+# K8s Manifest for Remote GPU Cluster
+#
+# This manifest targets a remote Kubernetes cluster with H100 or L40S GPU(s).
+# It uses kubernetes_conn_id to connect to the remote cluster instead of
+# the local in-cluster config.
+
+version: 0.0.1
+
+deployment:
+  dag_timeout: 172800 # 2 days
+
+  profiles:
+    k8s_gpu_endpoint:
+      operator: K8sServiceOperator
+      cleanup_operator: K8sCleanupOperator
+      pool: k8s_gpu_1
+      pool_slots: 1
+      configuration:
+        namespace: sdg-workflow
+        kubernetes_conn_id: kubernetes_remote
+        in_cluster: false
+        gpu: H100/L40S
+        model_cache_pvc: ngc-model-cache
+        image_pull_secrets:
+          - ngc-docker-registry-secret
+        inference_port: 8000
+        health_uri: /health
+        deployment_ready_timeout_seconds: 5400
+        poll_interval_seconds: 10
+
+    k8s_gpu_task:
+      operator: K8sTaskOperator
+      pool: k8s_gpu_1
+      pool_slots: 1
+      configuration:
+        namespace: sdg-workflow
+        kubernetes_conn_id: kubernetes_remote
+        in_cluster: false
+        startup_timeout_seconds: 900
+        gpu: H100/L40S
+        image_pull_secrets:
+          - ngc-docker-registry-secret
+
+    augmentation_task:
+      operator: K8sTaskOperator
+      pool: external_image_edit_service_pool
+      pool_slots: 1
+      configuration:
+        namespace: sdg-workflow
+        kubernetes_conn_id: kubernetes_remote
+        in_cluster: false
+        startup_timeout_seconds: 900
+        image_pull_secrets:
+          - ngc-docker-registry-secret
+
+  components:
+    endpoints:
+      # Qwen3-VL-30B-A3B-Instruct-FP8 — shared VLM
+      vlm_service:
+        container_image: nvcr.io/nvidia/vllm:25.12-py3
+        deployment_profile: k8s_gpu_endpoint
+        environment:
+          HF_HOME: "/config/models"
+        container_args: >-
+          python3 -m vllm.entrypoints.openai.api_server
+          --model Qwen/Qwen3-VL-30B-A3B-Instruct-FP8
+          --served-model-name Qwen/Qwen3-VL-30B-A3B-Instruct-FP8
+          --tensor-parallel-size 1
+          --max-model-len 64000
+          --trust-remote-code
+          --gpu-memory-utilization 0.6
+          --mm-encoder-tp-mode data
+          --limit-mm-per-prompt '{"image":1024,"video":1}'
+          --host 0.0.0.0 --port 8000
+        configuration:
+          inference_port: 8000
+          health_uri: /health
+        secrets:
+          HF_TOKEN: "{{ var.value.hf_token }}"
+
+      # Qwen2.5-14B-Instruct — LLM
+      llm_service:
+        container_image: nvcr.io/nvidia/vllm:25.12-py3
+        deployment_profile: k8s_gpu_endpoint
+        environment:
+          HF_HOME: "/config/models"
+        container_args: >-
+          python3 -m vllm.entrypoints.openai.api_server
+          --model Qwen/Qwen2.5-14B-Instruct
+          --served-model-name Qwen/Qwen2.5-14B-Instruct
+          --tensor-parallel-size 1
+          --max-model-len 32768
+          --trust-remote-code
+          --gpu-memory-utilization 0.6
+          --host 0.0.0.0 --port 8000
+        configuration:
+          inference_port: 8000
+          health_uri: /health
+        secrets:
+          HF_TOKEN: "{{ var.value.hf_token }}"
+
+      # Qwen-Image-Edit-2511 — image edit
+      image_edit_service:
+        container_image: vllm/vllm-omni:v0.20.0
+        deployment_profile: k8s_gpu_endpoint
+        environment:
+          HF_HOME: "/config/models"
+        container_args: vllm-omni serve Qwen/Qwen-Image-Edit-2511 --omni --port 8000
+        configuration:
+          inference_port: 8000
+          health_uri: /health
+        secrets:
+          HUGGING_FACE_HUB_TOKEN: "{{ var.value.hf_token }}"
+          HF_TOKEN: "{{ var.value.hf_token }}"
+
+    tasks:
+      auto_labeling:
+        container_image: nvcr.io/nvidia/paidf-auto-labeling:1.0.0
+        deployment_profile: k8s_gpu_task
+        environment:
+          DOWNLOAD_CKPTS: "none"
+          DOWNLOAD_REID: "false"
+        secrets:
+          MULTISTORAGECLIENT_CONFIGURATION: "{{ var.value.multistorageclient_configuration_secret }}"
+          NVIDIA_API_KEY: "{{ conn.nvcf_default.password }}"
+        configuration:
+          retries: 3
+          container_command: "bash -c 'exec uv run python modules/cli.py \"$@\"' _"
+
+      augmentation:
+        container_image: nvcr.io/nv-metropolis-dev/metropolis-sdg/paidf-augmentation:1.0.1-b2c2b494.main
+        deployment_profile: augmentation_task
+        environment:
+          UV_LINK_MODE: copy
+        secrets:
+          MULTISTORAGECLIENT_CONFIGURATION: "{{ var.value.multistorageclient_configuration_secret }}"
+          BUILD_NVIDIA_API_KEY: "{{ conn.nvcf_default.password }}"
+          NVIDIA_API_KEY: "{{ conn.nvcf_default.password }}"
+          VLM_API_KEY: "{{ conn.nvcf_default.password }}"
+          LLM_API_KEY: "{{ conn.nvcf_default.password }}"
+          IMAGE_EDIT_API_KEY: "{{ conn.nvcf_default.password }}"
+        configuration:
+          retries: 3
+          container_command: "bash -c 'exec uv run python /app/modules/cli.py \"$@\"' _"

@@ -1,0 +1,98 @@
+{{- /*
+ConfigMap containing the Kubernetes Pod Template for Airflow KubernetesExecutor
+This template defines how Airflow spawns worker pods for DAG task execution
+*/ -}}
+apiVersion: v1
+kind: ConfigMap
+metadata:
+  name: {{ include "sdg-workflow-controller.fullname" . }}-custom-pod-template
+  namespace: {{ .Release.Namespace }}
+  labels:
+    {{- include "sdg-workflow-controller.labels" . | nindent 4 }}
+    app.kubernetes.io/component: airflow-pod-template
+data:
+  custom_pod_template.yaml: |
+    apiVersion: v1
+    kind: Pod
+    metadata:
+      name: dag-pod-template
+      namespace: {{ .Release.Namespace }}
+    spec:
+      restartPolicy: Never
+      serviceAccountName: airflow
+      {{- with .Values.airflow.imagePullSecrets }}
+      imagePullSecrets:
+        {{- toYaml . | nindent 8 }}
+      {{- end }}
+      containers:
+        - name: base
+          image: {{ .Values.airflow.defaultAirflowRepository }}:{{ .Values.airflow.defaultAirflowTag }}
+          imagePullPolicy: Always
+          env:
+            - name: AIRFLOW__CORE__EXECUTOR
+              value: LocalExecutor
+            - name: AIRFLOW__CORE__EXECUTION_API_SERVER_URL
+              value: http://{{ include "sdg-workflow-controller.fullname" . }}-api-server:8080/execution/
+            # Match scheduler limits so get_max_airflow_tasks() returns 128 in worker pods so the python op can read it.
+            - name: AIRFLOW__CORE__PARALLELISM
+              value: {{ .Values.airflow.config.core.parallelism | default "32" | quote }}
+            - name: AIRFLOW__CORE__MAX_ACTIVE_TASKS_PER_DAG
+              value: {{ .Values.airflow.config.core.max_active_tasks_per_dag | default .Values.airflow.config.core.parallelism | default "32" | quote }}
+            - name: CONNECTION_CHECK_MAX_COUNT
+              value: "20"
+            - name: NAMESPACE
+              valueFrom:
+                fieldRef:
+                  fieldPath: metadata.namespace
+            {{- with .Values.airflow.env }}
+            {{- range . }}
+            - name: {{ .name }}
+              {{- if .value }}
+              value: {{ .value | quote }}
+              {{- else if .valueFrom }}
+              valueFrom:
+                {{- toYaml .valueFrom | nindent 16 }}
+              {{- end }}
+            {{- end }}
+            {{- end }}
+            {{- range .Values.airflow.secret }}
+            - name: {{ .envName }}
+              valueFrom:
+                secretKeyRef:
+                  name: {{ .secretName }}
+                  key: {{ default "value" .secretKey }}
+            {{- end }}
+          volumeMounts:
+            - name: s3-dags
+              mountPath: /opt/airflow/dags
+            - name: s3-python-deps
+              mountPath: /opt/airflow/python-deps
+            - name: s3-plugins
+              mountPath: /opt/airflow/plugins
+            {{- if .Values.airflow.logs.persistence.enabled }}
+            - name: logs-data
+              mountPath: /opt/airflow/logs
+            {{- end }}
+            - name: k8s-service-templates
+              mountPath: /opt/k8s-service-templates
+              readOnly: true
+          resources:
+            {{- toYaml .Values.global.dags.podTemplate.resources | nindent 12 }}
+      volumes:
+        - name: s3-dags
+          persistentVolumeClaim:
+            claimName: {{ .Values.global.dags.persistence.claimName }}
+        - name: s3-python-deps
+          persistentVolumeClaim:
+            claimName: {{ .Values.global.pythonDependencies.persistence.claimName }}
+        - name: s3-plugins
+          persistentVolumeClaim:
+            claimName: {{ .Values.global.plugins.persistence.claimName }}
+        {{- if .Values.airflow.logs.persistence.enabled }}
+        - name: logs-data
+          persistentVolumeClaim:
+            claimName: {{ include "sdg-workflow-controller.fullname" . }}-logs
+        {{- end }}
+        - name: k8s-service-templates
+          configMap:
+            name: {{ include "sdg-workflow-controller.fullname" . }}-k8s-service-templates

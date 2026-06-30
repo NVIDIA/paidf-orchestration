@@ -1,0 +1,102 @@
+{
+  "input_path": "s3://<your-input-bucket>/<your-workflow>/input",
+  "max_imgs": 10,
+  "output_directory": "s3://<your-output-bucket>/<your-workflow>/output",
+  "external_services": true,
+  "service_lifecycle": {
+    "vlm_service": {
+      "enabled": false,
+      "replicas": 1
+    },
+    "llm_service": {
+      "enabled": false,
+      "replicas": 1
+    },
+    "image_edit_service": {
+      "enabled": false,
+      "replicas": 1
+    }
+  },
+  "cosmos": {
+    "vlm_service_url": "https://<your-vlm-endpoint>/v1",
+    "llm_service_url": "https://<your-llm-endpoint>/v1",
+    "image_edit_service_url": "https://<your-image-edit-endpoint>/v1",
+    "vlm_model": "Qwen/Qwen3-VL-30B-A3B-Instruct-FP8",
+    "llm_model": "Qwen/Qwen2.5-14B-Instruct",
+    "image_edit_model": "Qwen/Qwen-Image-Edit-2511",
+    "num_augmentation": 1,
+    "external_services": true,
+    "variable_distribution": {
+      "variables": {
+        "top_outer_color": {
+          "black": 0.34,
+          "blue": 0.33,
+          "red": 0.33
+        },
+        "top_outer_type": {
+          "hoodie": 0.5,
+          "vest": 0.5
+        },
+        "bottom_type": {
+          "jeans": 0.5,
+          "shorts": 0.5
+        },
+        "bottom_color": {
+          "black": 0.5,
+          "blue": 0.5
+        },
+        "shoe_type": {
+          "barefoot": 0.25,
+          "boots": 0.25,
+          "sandals": 0.25,
+          "sneakers": 0.25
+        },
+        "colors": {
+          "black": {
+            "charcoal black": 0.7,
+            "jet black": 0.3
+          },
+          "blue": {
+            "navy blue": 0.6,
+            "denim blue": 0.4
+          },
+          "red": {
+            "crimson": 0.5,
+            "bright red": 0.5
+          }
+        }
+      },
+      "conditional_variables": {
+        "shoe_color": {
+          "depends_on": "shoe_type",
+          "distributions": {
+            "barefoot": {
+              "none": 1.0
+            },
+            "boots": {
+              "black": 0.6,
+              "brown": 0.4
+            },
+            "sandals": {
+              "black": 0.5,
+              "brown": 0.5
+            },
+            "sneakers": {
+              "black": 0.5,
+              "white": 0.5
+            }
+          }
+        }
+      }
+    }
+  },
+  "auto_labeling": {
+    "tracker": "bytetrack",
+    "threshold": 0.3,
+    "vlm_service_url": "https://<your-vlm-endpoint>/v1",
+    "llm_service_url": "https://<your-llm-endpoint>/v1",
+    "vlm_model": "Qwen/Qwen3-VL-30B-A3B-Instruct-FP8",
+    "llm_model": "Qwen/Qwen2.5-14B-Instruct",
+    "external_services": true
+  }
+}
