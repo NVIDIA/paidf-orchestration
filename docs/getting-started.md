@@ -43,9 +43,10 @@ If you are using one bucket for DAG artifacts, input data, and output data, set 
 This project requires the following secrets:
 - **NGC API Key**: Obtain an [NGC API Key](https://org.ngc.nvidia.com/account/api-key). This is used to pull various docker containers used by the workflow from NGC.
 - **HuggingFace Token**: This is used for HuggingFace model downloads for LLM/VLM/image-edit services. To create the token:
-   - Read and accept the [terms for Cosmos-Guardrail1](https://huggingface.co/nvidia/Cosmos-Guardrail1)
-   - Read and accept the [terms for Cosmos-Transfer2.5](https://huggingface.co/nvidia/Cosmos-Transfer2.5-2B)
-   - Create a new [HuggingFace Token](https://huggingface.co/settings/tokens) with read permissions for `nvidia/Cosmos-Guardrail1`, `nvidia/Cosmos-Transfer2.5-2B`, `nvidia/Cosmos-Reason1-7B`, and `Qwen/Qwen-Image-Edit-2511` models.
+   - If you use reference models such as [Cosmos-Guardrail1](https://huggingface.co/nvidia/Cosmos-Guardrail1), [Cosmos-Transfer2.5](https://huggingface.co/nvidia/Cosmos-Transfer2.5-2B), or [Qwen-Image-Edit-2511](https://huggingface.co/Qwen/Qwen-Image-Edit-2511), read and accept their terms.
+   - If you use different models, read and accept the terms for the model repositories your deployment uses.
+   - Create a new [HuggingFace Token](https://huggingface.co/settings/tokens) with read permissions for those repositories.
+   - See [Update model selections](advanced-usage.md#update-model-selections) for where models are configured.
 - **S3 Credentials**: See instructions from the [previous step](#s3-buckets-and-credentials) for AWS credential setup.
 
 Once the secrets are ready, set them up in the repo using the following steps:

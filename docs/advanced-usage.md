@@ -26,6 +26,19 @@ Unchanged artifacts are skipped by comparing local content hashes against finger
 
 For Helm value, secret changes or dependencies adjustment, run `make install sdg-controller` again.
 
+## Update model selections
+
+You can update models in two places, depending on whether you want per-run overrides or new defaults:
+
+1. **Per workflow run (payload override):** Set `cosmos.vlm_model`, `cosmos.llm_model`, `cosmos.image_edit_model`, `auto_labeling.vlm_model`, and `auto_labeling.llm_model` in the trigger payload. See [Payload Guide](payload-guide.md#cosmos-fields-augmentation).
+2. **Default in-cluster endpoint models:** Edit `airflow/dags/workflows/pas_dag/configs/pas_k8s_manifest.yaml` (and the mirrored `deploy/.../pas_k8s_manifest.yaml`) under `deployment.components.endpoints.*`.
+
+When updating default in-cluster endpoint models:
+
+- Update endpoint startup args in `container_args` (for example, `--model` and `--served-model-name`) and adjust the container image if needed.
+- Ensure your HuggingFace token has access to the selected model repositories.
+- Run `make sync-dag` to publish DAG/manifests updates.
+
 ## Scale internal image-edit throughput
 
 When `external_services` is `false`, PAS deploys an in-cluster image-edit endpoint and routes augmentation work through the Airflow pool **`internal_image_edit_service_pool`**. That pool controls how many augmentation tasks may run at once against the internal service.

@@ -128,7 +128,7 @@ deployment:
           container_command: "bash -c 'exec uv run python modules/cli.py \"$@\"' _"
 
       augmentation:
-        container_image: nvcr.io/nv-metropolis-dev/metropolis-sdg/paidf-augmentation:1.0.1-b2c2b494.main
+        container_image: nvcr.io/nvidia/paidf-augmentation:1.0.1
         deployment_profile: augmentation_task
         environment:
           UV_LINK_MODE: copy
