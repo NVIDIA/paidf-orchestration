@@ -1,0 +1,51 @@
+{
+  "input_path": "s3://<your-input-bucket>/<your-workflow>/input",
+  "max_imgs": 1,
+  "output_directory": "s3://<your-output-bucket>/<your-workflow>/output",
+  "external_services": false,
+  "service_lifecycle": {
+    "vlm_service": {
+      "enabled": true,
+      "replicas": 1
+    },
+    "llm_service": {
+      "enabled": true,
+      "replicas": 1
+    },
+    "image_edit_service": {
+      "enabled": true,
+      "replicas": 1
+    }
+  },
+  "cosmos": {
+    "num_augmentation": 1,
+    "external_services": false,
+    "variable_distribution": {
+      "variables": {
+        "top_outer_color": {
+          "black": 1.0
+        },
+        "top_outer_type": {
+          "hoodie": 1.0
+        },
+        "bottom_type": {
+          "jeans": 1.0
+        },
+        "bottom_color": {
+          "blue": 1.0
+        },
+        "shoe_type": {
+          "sneakers": 1.0
+        },
+        "shoe_color": {
+          "white": 1.0
+        }
+      }
+    }
+  },
+  "auto_labeling": {
+    "tracker": "bytetrack",
+    "threshold": 0.3,
+    "external_services": false
+  }
+}

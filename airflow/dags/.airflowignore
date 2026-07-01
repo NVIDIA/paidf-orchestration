@@ -1,0 +1,4 @@
+# Ignore Kubernetes ConfigMap symlinks in dags/workflows/ directory
+^dags/workflows/\.\./.*
+^dags/workflows/\.\.data.*
+^dags/workflows/\.\.[0-9].*

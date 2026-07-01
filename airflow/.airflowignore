@@ -1,0 +1,25 @@
+
+# Ignore virtual environments (not DAGs)
+\.venv
+
+# Ignore plugins (not DAGs)
+plugins/
+
+# Ignore egg-info and build directories
+\.egg-info
+
+# Ignore lock files and project config
+uv\.lock
+pyproject\.toml
+
+# Ignore Python cache
+__pycache__
+\.pyc$
+\.pyo$
+
+# Ignore test directory (not DAGs)
+tests/
+
+# Ignore config files
+\.coveragerc
+\.airflowignore

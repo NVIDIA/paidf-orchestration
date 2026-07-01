@@ -1,0 +1,472 @@
+# Development values with DAG definitions included
+# This file includes the example DAGs from the airflow/ directory
+
+# PostgreSQL Configuration (Official Bitnami Chart)
+# Note: Using official postgres image due to image pull issues with bitnami registry
+postgresql:
+  enabled: true
+  image:
+    registry: docker.io
+    repository: postgres
+    tag: "16.4-alpine"
+    pullPolicy: IfNotPresent
+  auth:
+    host: sdg-workflow-controller-postgresql
+    port: 5432
+    username: admin
+    database: airflow
+    password: admin
+    postgresPassword: admin
+  primary:
+    persistence:
+      enabled: true
+      size: 10Gi
+      storageClass: nfs
+    resources:
+      requests:
+        cpu: 250m
+        memory: 512Mi
+      limits:
+        cpu: 1000m
+        memory: 1Gi
+    # Configure for official postgres image compatibility
+    podSecurityContext:
+      enabled: true
+      fsGroup: 70
+    containerSecurityContext:
+      enabled: true
+      runAsUser: 70
+      runAsNonRoot: true
+      readOnlyRootFilesystem: false
+    # Add writable volume for /var/run/postgresql
+    extraVolumes:
+      - name: run-postgresql
+        emptyDir: {}
+    extraVolumeMounts:
+      - name: run-postgresql
+        mountPath: /var/run/postgresql
+    # Create both databases on initialization
+    initdb:
+      scripts:
+        init-databases.sh: |
+          #!/bin/bash
+          set -e
+          echo "Initializing databases..."
+
+          # Create airflow database if it doesn't exist
+          psql -v ON_ERROR_STOP=1 --username "$POSTGRES_USER" --dbname "postgres" <<-EOSQL
+            SELECT 'CREATE DATABASE airflow'
+            WHERE NOT EXISTS (SELECT FROM pg_database WHERE datname = 'airflow')\gexec
+            GRANT ALL PRIVILEGES ON DATABASE airflow TO $POSTGRES_USER;
+          EOSQL
+          
+          # Create sdg_workflow database if it doesn't exist
+          psql -v ON_ERROR_STOP=1 --username "$POSTGRES_USER" --dbname "postgres" <<-EOSQL
+            SELECT 'CREATE DATABASE sdg_workflow'
+            WHERE NOT EXISTS (SELECT FROM pg_database WHERE datname = 'sdg_workflow')\gexec
+            GRANT ALL PRIVILEGES ON DATABASE sdg_workflow TO $POSTGRES_USER;
+          EOSQL
+          
+          echo "Databases created successfully!"
+          echo "- airflow"
+          echo "- sdg_workflow"
+
+global:
+  s3Sync:
+    image: public.ecr.aws/aws-cli/aws-cli:latest
+    intervalSeconds: 30
+  dags:
+    enabled: true
+    source: s3
+    hostPath: ""
+    persistence:
+      size: 1Gi
+      accessMode: ReadWriteMany
+      storageClassName: nfs
+      claimName: sdg-workflow-controller-dags
+    podTemplate:
+      resources:
+        requests:
+          cpu: 250m
+          memory: 512Mi
+        limits:
+          cpu: 1000m
+          memory: 1Gi
+  plugins:
+    enabled: false
+    hostPath: ""
+    persistence:
+      size: 1Gi
+      accessMode: ReadWriteMany
+      storageClassName: nfs
+      claimName: sdg-workflow-controller-plugins
+  pythonDependencies:
+    enabled: false
+    hostPath: ""
+    persistence:
+      size: 5Gi
+      accessMode: ReadWriteMany
+      storageClassName: nfs
+      claimName: sdg-workflow-controller-python-deps
+  modelCache:
+    enabled: true
+    claimName: ngc-model-cache
+    size: 500Gi
+    accessMode: ReadWriteMany
+    storageClassName: nfs
+
+x-s3-sync-env: &s3SyncEnv
+  - name: AWS_ACCESS_KEY_ID
+    valueFrom:
+      secretKeyRef:
+        name: aws-credentials-secret
+        key: aws_s3_dag_access_key_id
+  - name: AWS_SECRET_ACCESS_KEY
+    valueFrom:
+      secretKeyRef:
+        name: aws-credentials-secret
+        key: aws_s3_dag_secret_access_key
+  - name: AWS_DEFAULT_REGION
+    valueFrom:
+      secretKeyRef:
+        name: aws-credentials-secret
+        key: aws_s3_dag_region
+  - name: AIRFLOW_DAGS_S3_URI
+    valueFrom:
+      configMapKeyRef:
+        name: sdg-workflow-controller-s3-sync
+        key: dags_uri
+  - name: AIRFLOW_PYTHON_DEPS_S3_URI
+    valueFrom:
+      configMapKeyRef:
+        name: sdg-workflow-controller-s3-sync
+        key: python_dependencies_uri
+  - name: AIRFLOW_PLUGINS_S3_URI
+    valueFrom:
+      configMapKeyRef:
+        name: sdg-workflow-controller-s3-sync
+        key: plugins_uri
+
+x-s3-sync-init-containers: &s3SyncInitContainers
+  - name: sync-dags-from-s3
+    image: public.ecr.aws/aws-cli/aws-cli:latest
+    command: ["/bin/sh", "-c"]
+    args:
+      - aws s3 sync "$AIRFLOW_DAGS_S3_URI" /opt/airflow/dags/ --delete
+    env: *s3SyncEnv
+    volumeMounts:
+      - name: s3-dags
+        mountPath: /opt/airflow/dags
+  - name: sync-python-deps-from-s3
+    image: public.ecr.aws/aws-cli/aws-cli:latest
+    command: ["/bin/sh", "-c"]
+    args:
+      - aws s3 sync "$AIRFLOW_PYTHON_DEPS_S3_URI" /opt/airflow/python-deps/ --delete
+    env: *s3SyncEnv
+    volumeMounts:
+      - name: s3-python-deps
+        mountPath: /opt/airflow/python-deps
+  - name: sync-plugins-from-s3
+    image: public.ecr.aws/aws-cli/aws-cli:latest
+    command: ["/bin/sh", "-c"]
+    args:
+      - aws s3 sync "$AIRFLOW_PLUGINS_S3_URI" /opt/airflow/plugins/ --delete
+    env: *s3SyncEnv
+    volumeMounts:
+      - name: s3-plugins
+        mountPath: /opt/airflow/plugins
+
+x-s3-sync-sidecars: &s3SyncSidecars
+  - name: sync-dags-from-s3-loop
+    image: public.ecr.aws/aws-cli/aws-cli:latest
+    command: ["/bin/sh", "-c"]
+    args:
+      - while true; do aws s3 sync "$AIRFLOW_DAGS_S3_URI" /opt/airflow/dags/ --delete; sleep 30; done
+    env: *s3SyncEnv
+    volumeMounts:
+      - name: s3-dags
+        mountPath: /opt/airflow/dags
+  - name: sync-python-deps-from-s3-loop
+    image: public.ecr.aws/aws-cli/aws-cli:latest
+    command: ["/bin/sh", "-c"]
+    args:
+      - while true; do aws s3 sync "$AIRFLOW_PYTHON_DEPS_S3_URI" /opt/airflow/python-deps/ --delete; sleep 30; done
+    env: *s3SyncEnv
+    volumeMounts:
+      - name: s3-python-deps
+        mountPath: /opt/airflow/python-deps
+  - name: sync-plugins-from-s3-loop
+    image: public.ecr.aws/aws-cli/aws-cli:latest
+    command: ["/bin/sh", "-c"]
+    args:
+      - while true; do aws s3 sync "$AIRFLOW_PLUGINS_S3_URI" /opt/airflow/plugins/ --delete; sleep 30; done
+    env: *s3SyncEnv
+    volumeMounts:
+      - name: s3-plugins
+        mountPath: /opt/airflow/plugins
+
+x-s3-sync-volumes: &s3SyncVolumes
+  - name: s3-dags
+    persistentVolumeClaim:
+      claimName: sdg-workflow-controller-dags
+  - name: s3-python-deps
+    persistentVolumeClaim:
+      claimName: sdg-workflow-controller-python-deps
+  - name: s3-plugins
+    persistentVolumeClaim:
+      claimName: sdg-workflow-controller-plugins
+
+x-s3-sync-volume-mounts: &s3SyncVolumeMounts
+  - name: s3-dags
+    mountPath: /opt/airflow/dags
+  - name: s3-python-deps
+    mountPath: /opt/airflow/python-deps
+  - name: s3-plugins
+    mountPath: /opt/airflow/plugins
+airflow:
+  # Override fullname so services are named sdg-workflow-controller-*
+  # (e.g. sdg-workflow-controller-api-server, sdg-workflow-controller-scheduler)
+  fullnameOverride: "sdg-workflow-controller"
+  airflowVersion: "3.1.7"
+
+  # Image configuration
+  defaultAirflowRepository: apache/airflow
+  defaultAirflowTag: 3.1.7-python3.11
+  images:
+    airflow:
+      pullPolicy: IfNotPresent
+  imagePullSecrets:
+    - name: ngc-docker-registry-secret
+
+  executor: KubernetesExecutor
+
+  # Environment variables for all airflow containers
+  env:
+    # Config paths - modify these to switch between different config files
+    # Configs are loaded from DAG storage.
+    - name: LOGGING_LEVEL
+      value: "INFO"
+    - name: PYTHONPATH
+      value: "/opt/airflow:/opt/airflow/python-deps:/opt/airflow/plugins:/opt/airflow/dags"
+
+  # Inject Airflow connections and variables from k8s secrets as env vars.
+  # AIRFLOW_CONN_* sets connections, AIRFLOW_VAR_* sets variables.
+  secret:
+    - envName: "AIRFLOW_CONN_NVCF_DEFAULT"
+      secretName: "nvcf-connection-secret"
+      secretKey: "connection"
+    - envName: "AIRFLOW_CONN_KUBERNETES_REMOTE"
+      secretName: "kubernetes-remote-connection-secret"
+      secretKey: "connection"
+    - envName: "AIRFLOW_VAR_HF_TOKEN"
+      secretName: "hf-token-secret"
+      secretKey: "hf_token"
+    - envName: "AIRFLOW_VAR_NGC_API_KEY"
+      secretName: "ngc-api-key-secret"
+      secretKey: "ngc_api_key"
+    - envName: "AIRFLOW_VAR_MULTISTORAGECLIENT_CONFIGURATION_SECRET"
+      secretName: "multistorageclient-configuration-secret"
+      secretKey: "multistorageclient_configuration_secret"
+
+  # Airflow config overrides (merged with chart defaults via config.section.key)
+  config:
+    core:
+      dags_are_paused_at_creation: "False"
+      parallelism: "128"
+      max_active_tasks_per_dag: "128"
+      max_active_runs_per_dag: "64"
+      max_map_length: "2048" # default is 1024
+      dagbag_import_timeout: "30"
+    webserver:
+      expose_config: "True"
+    scheduler:
+      # Airflow 3: DAG parsing is handled by a separate DagProcessor deployment.
+      # standalone_dag_processor=True tells the scheduler to skip parsing and
+      # rely on the dagProcessor component instead.
+      standalone_dag_processor: "True"
+    dag_processor:
+      # How often (seconds) the DagProcessor rescans the DAGs folder
+      refresh_interval: "30"
+    kubernetes_executor:
+      pod_template_file: "/opt/airflow/pod_templates/custom_pod_template.yaml"
+    celery:
+      worker_concurrency: "128"
+    database:
+      sql_alchemy_pool_pre_ping: "True"
+      sql_alchemy_pool_recycle: "1800"
+      sql_alchemy_pool_size: "15"
+      sql_alchemy_max_overflow: "35"
+    logging:
+      log_retention_days: "3"
+      max_log_file_size_mb: "100"
+
+  # Admin user creation (runs as a Kubernetes Job)
+  # useHelmHooks + applyCustomEnv must both be false when using --wait
+  # (see https://airflow.apache.org/docs/helm-chart/stable/index.html)
+  createUserJob:
+    useHelmHooks: false
+    applyCustomEnv: false
+    defaultUser:
+      role: Admin
+      username: admin
+      password: admin
+      email: admin@example.com
+      firstName: Admin
+      lastName: User
+
+  # Database migration job
+  migrateDatabaseJob:
+    useHelmHooks: false
+    applyCustomEnv: false
+
+  # DAGs are synced from S3 into pod-local volumes.
+  dags:
+    persistence:
+      enabled: false
+    gitSync:
+      enabled: false
+
+  # Airflow 3: UI and REST API are served by the api-server component.
+  webserver:
+    enabled: false
+
+  # Airflow API server (REST API + UI in Airflow 3)
+  # Enabled via Terraform override (airflow.apiServer.enabled=true)
+  apiServer:
+    replicas: 1
+    # Recreate avoids running old+new pods simultaneously, which would exceed
+    # the 2-node cluster's CPU capacity during rolling upgrades.
+    strategy:
+      type: Recreate
+    # Airflow API server can take longer to bootstrap under cluster load.
+    # Increase startup probe budget to avoid premature restarts.
+    startupProbe:
+      initialDelaySeconds: 30
+      periodSeconds: 10
+      timeoutSeconds: 20
+      failureThreshold: 24
+    resources:
+      requests:
+        cpu: 250m
+        memory: 512Mi
+      limits:
+        cpu: 1000m
+        memory: 1Gi
+
+  # Scheduler
+  scheduler:
+    replicas: 1
+    strategy:
+      type: Recreate
+    # Scheduler performs DB/metadata initialization before passing health checks.
+    startupProbe:
+      initialDelaySeconds: 30
+      periodSeconds: 10
+      timeoutSeconds: 120
+      failureThreshold: 24
+    # Scheduler health checks can be slow under bursty DAG/task activity.
+    # Use a longer timeout budget to avoid kubelet killing healthy-but-busy schedulers.
+    livenessProbe:
+      initialDelaySeconds: 60
+      periodSeconds: 30
+      timeoutSeconds: 120
+      failureThreshold: 10
+    logGroomerSidecar:
+      retentionDays: 3
+    serviceAccount:
+      create: true
+      name: "airflow"
+    extraVolumes:
+      - name: custom-pod-template
+        configMap:
+          name: sdg-workflow-controller-custom-pod-template
+    extraVolumeMounts:
+      - name: custom-pod-template
+        mountPath: /opt/airflow/pod_templates/custom_pod_template.yaml
+        subPath: custom_pod_template.yaml
+
+  # Dag Processor (separate component that parses DAGs on behalf of the scheduler)
+  dagProcessor:
+    enabled: true
+    livenessProbe:
+      timeoutSeconds: 100
+      failureThreshold: 5
+    logGroomerSidecar:
+      retentionDays: 3
+    strategy:
+      rollingUpdate:
+        maxSurge: 100%
+        maxUnavailable: 100%
+    extraInitContainers: *s3SyncInitContainers
+    extraContainers: *s3SyncSidecars
+    extraVolumes: *s3SyncVolumes
+    extraVolumeMounts: *s3SyncVolumeMounts
+
+  triggerer:
+    enabled: true
+    replicas: 1
+    livenessProbe:
+      initialDelaySeconds: 60
+      periodSeconds: 30
+      timeoutSeconds: 60
+      failureThreshold: 10
+    extraVolumes: *s3SyncVolumes
+    extraVolumeMounts: *s3SyncVolumeMounts
+
+  # Flower (disabled - using KubernetesExecutor, not Celery)
+  flower:
+    enabled: false
+
+  # Disable built-in PostgreSQL - use external PostgreSQL chart instead
+  postgresql:
+    enabled: false
+
+  # External PostgreSQL database connection (credentials stored in K8s secret)
+  data:
+    metadataSecretName: sdg-workflow-db-secret
+
+  redis:
+    enabled: false
+
+  # StatsD metrics (disabled)
+  statsd:
+    enabled: false
+
+  rbac:
+    create: true
+
+  logs:
+    persistence:
+      enabled: true
+      size: 20Gi
+      storageClassName: nfs
+
+  # Clean up old KubernetesExecutor pods
+  cleanup:
+    enabled: false
+    schedule: "*/15 * * * *"
+
+## K8s platform operators configuration
+k8sOperators:
+  rbac:
+    enabled: true
+
+## Airflow pools - created at install/upgrade by the create-pools Job
+## This needs to represent the actual throughput of the compute backend
+## includeDeferred: when true, tasks in deferred state still occupy pool slots (rate-limiting for deferrable operators)
+airflowPools:
+  enabled: true
+  pools:
+    - name: "k8s_gpu_1"
+      slots: 8
+      description: "K8s H100/L40S tasks and endpoints"
+      includeDeferred: true
+    - name: "internal_image_edit_service_pool"
+      slots: 1
+      description: "Internal image-edit service pool"
+      includeDeferred: true
+    - name: "external_image_edit_service_pool"
+      slots: 16
+      description: "External image-edit service pool"
+      includeDeferred: true
+

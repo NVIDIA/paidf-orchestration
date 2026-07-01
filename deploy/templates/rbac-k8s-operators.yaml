@@ -1,0 +1,37 @@
+{{- if .Values.k8sOperators.rbac.enabled }}
+# RBAC for K8s platform operators (K8sServiceOperator, K8sCleanupOperator)
+# Grants permission to manage Deployments and Services in the release namespace.
+# Required because Airflow's default RBAC only covers Pod management for KubernetesExecutor.
+apiVersion: rbac.authorization.k8s.io/v1
+kind: Role
+metadata:
+  name: {{ include "sdg-workflow-controller.fullname" . }}-k8s-operator
+  namespace: {{ .Release.Namespace }}
+  labels:
+    {{- include "sdg-workflow-controller.labels" . | nindent 4 }}
+    app.kubernetes.io/component: k8s-operator-rbac
+rules:
+  - apiGroups: ["apps"]
+    resources: ["deployments"]
+    verbs: ["create", "get", "list", "patch", "replace", "delete"]
+  - apiGroups: [""]
+    resources: ["services"]
+    verbs: ["create", "get", "list", "patch", "delete"]
+---
+apiVersion: rbac.authorization.k8s.io/v1
+kind: RoleBinding
+metadata:
+  name: {{ include "sdg-workflow-controller.fullname" . }}-k8s-operator
+  namespace: {{ .Release.Namespace }}
+  labels:
+    {{- include "sdg-workflow-controller.labels" . | nindent 4 }}
+    app.kubernetes.io/component: k8s-operator-rbac
+roleRef:
+  apiGroup: rbac.authorization.k8s.io
+  kind: Role
+  name: {{ include "sdg-workflow-controller.fullname" . }}-k8s-operator
+subjects:
+  - kind: ServiceAccount
+    name: {{ .Values.airflow.workers.serviceAccount.name | default "airflow" }}
+    namespace: {{ .Release.Namespace }}
+{{- end }}

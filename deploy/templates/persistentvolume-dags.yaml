@@ -1,0 +1,104 @@
+{{- if and .Values.global.dags.enabled (eq .Values.global.dags.source "hostPath") }}
+apiVersion: v1
+kind: PersistentVolume
+metadata:
+  name: {{ .Values.global.dags.persistence.volumeName }}
+  labels:
+    component: dags
+spec:
+  capacity:
+    storage: {{ .Values.global.dags.persistence.size }}
+  accessModes:
+    - {{ .Values.global.dags.persistence.accessMode }}
+  persistentVolumeReclaimPolicy: Retain
+  storageClassName: {{ .Values.global.dags.persistence.storageClassName | quote }}
+  hostPath:
+    path: {{ .Values.global.dags.hostPath | quote }}
+    type: Directory
+---
+apiVersion: v1
+kind: PersistentVolumeClaim
+metadata:
+  name: {{ .Values.global.dags.persistence.claimName }}
+  namespace: {{ .Release.Namespace }}
+  labels:
+    component: dags
+spec:
+  accessModes:
+    - {{ .Values.global.dags.persistence.accessMode }}
+  resources:
+    requests:
+      storage: {{ .Values.global.dags.persistence.size }}
+  storageClassName: {{ .Values.global.dags.persistence.storageClassName | quote }}
+  volumeName: {{ .Values.global.dags.persistence.volumeName }}
+{{- end }}
+{{- if and .Values.global.plugins.enabled .Values.global.plugins.hostPath }}
+---
+apiVersion: v1
+kind: PersistentVolume
+metadata:
+  name: {{ .Values.global.plugins.persistence.volumeName }}
+  labels:
+    component: plugins
+spec:
+  capacity:
+    storage: {{ .Values.global.plugins.persistence.size }}
+  accessModes:
+    - {{ .Values.global.plugins.persistence.accessMode }}
+  persistentVolumeReclaimPolicy: Retain
+  storageClassName: {{ .Values.global.plugins.persistence.storageClassName | quote }}
+  hostPath:
+    path: {{ .Values.global.plugins.hostPath | quote }}
+    type: Directory
+---
+apiVersion: v1
+kind: PersistentVolumeClaim
+metadata:
+  name: {{ .Values.global.plugins.persistence.claimName }}
+  namespace: {{ .Release.Namespace }}
+  labels:
+    component: plugins
+spec:
+  accessModes:
+    - {{ .Values.global.plugins.persistence.accessMode }}
+  resources:
+    requests:
+      storage: {{ .Values.global.plugins.persistence.size }}
+  storageClassName: {{ .Values.global.plugins.persistence.storageClassName | quote }}
+  volumeName: {{ .Values.global.plugins.persistence.volumeName }}
+{{- end }}
+{{- if and .Values.global.pythonDependencies.enabled .Values.global.pythonDependencies.hostPath }}
+---
+apiVersion: v1
+kind: PersistentVolume
+metadata:
+  name: {{ .Values.global.pythonDependencies.persistence.volumeName }}
+  labels:
+    component: python-deps
+spec:
+  capacity:
+    storage: {{ .Values.global.pythonDependencies.persistence.size }}
+  accessModes:
+    - {{ .Values.global.pythonDependencies.persistence.accessMode }}
+  persistentVolumeReclaimPolicy: Retain
+  storageClassName: {{ .Values.global.pythonDependencies.persistence.storageClassName | quote }}
+  hostPath:
+    path: {{ .Values.global.pythonDependencies.hostPath | quote }}
+    type: Directory
+---
+apiVersion: v1
+kind: PersistentVolumeClaim
+metadata:
+  name: {{ .Values.global.pythonDependencies.persistence.claimName }}
+  namespace: {{ .Release.Namespace }}
+  labels:
+    component: python-deps
+spec:
+  accessModes:
+    - {{ .Values.global.pythonDependencies.persistence.accessMode }}
+  resources:
+    requests:
+      storage: {{ .Values.global.pythonDependencies.persistence.size }}
+  storageClassName: {{ .Values.global.pythonDependencies.persistence.storageClassName | quote }}
+  volumeName: {{ .Values.global.pythonDependencies.persistence.volumeName }}
+{{- end }}

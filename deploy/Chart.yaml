@@ -1,0 +1,16 @@
+apiVersion: v2
+name: sdg-workflow-controller
+description: SDG Workflow Controller using Apache Airflow
+type: application
+version: 1.0.1
+appVersion: "3.1.7"
+
+dependencies:
+  - name: postgresql
+    version: "15.5.38"
+    repository: "https://charts.bitnami.com/bitnami"
+    condition: postgresql.enabled
+  - name: airflow
+    version: "1.19.0"
+    repository: "https://airflow.apache.org"
+

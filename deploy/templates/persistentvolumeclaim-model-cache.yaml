@@ -1,0 +1,17 @@
+{{- if .Values.global.modelCache.enabled }}
+apiVersion: v1
+kind: PersistentVolumeClaim
+metadata:
+  name: {{ .Values.global.modelCache.claimName }}
+  namespace: {{ .Release.Namespace }}
+  labels:
+    {{- include "sdg-workflow-controller.labels" . | nindent 4 }}
+    app.kubernetes.io/component: model-cache
+spec:
+  accessModes:
+    - {{ .Values.global.modelCache.accessMode }}
+  storageClassName: {{ .Values.global.modelCache.storageClassName | quote }}
+  resources:
+    requests:
+      storage: {{ .Values.global.modelCache.size }}
+{{- end }}
