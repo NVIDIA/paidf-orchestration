@@ -1,24 +1,42 @@
-## Security
+<!--
+SPDX-FileCopyrightText: Copyright (c) 2026 NVIDIA CORPORATION & AFFILIATES. All rights reserved.
+SPDX-License-Identifier: Apache-2.0
+-->
 
-NVIDIA is dedicated to the security and trust of our software products and services, including all source code repositories managed through our organization.
+# Security Policy
 
-If you need to report a security issue, please use the appropriate contact points outlined below. **Please do not report security vulnerabilities through GitHub.** If a potential security issue is inadvertently reported via a public issue or pull request, NVIDIA maintainers may limit public discussion and redirect the reporter to the appropriate private disclosure channels.
+## Reporting a Vulnerability
 
-## Reporting Potential Security Vulnerability in an NVIDIA Product
+NVIDIA is committed to addressing security issues in this project responsibly. If you believe you have found a security vulnerability in **PAIDF Orchestration**, please report it to the NVIDIA Product Security Incident Response Team (PSIRT) rather than opening a public issue or pull request.
 
-To report a potential security vulnerability in any NVIDIA product:
-- Web: [Security Vulnerability Submission Form](https://www.nvidia.com/object/submit-security-vulnerability.html)
-- E-Mail: psirt@nvidia.com
-    - We encourage you to use the following PGP key for secure email communication: [NVIDIA public PGP Key for communication](https://www.nvidia.com/en-us/security/pgp-key)
-    - Please include the following information:
-   	 - Product/Driver name and version/branch that contains the vulnerability
-     - Type of vulnerability (code execution, denial of service, buffer overflow, etc.)
-   	 - Instructions to reproduce the vulnerability
-   	 - Proof-of-concept or exploit code
-   	 - Potential impact of the vulnerability, including how an attacker could exploit the vulnerability
+- **Email:** [psirt@nvidia.com](mailto:psirt@nvidia.com)
+- **Web:** [https://www.nvidia.com/en-us/security/](https://www.nvidia.com/en-us/security/)
 
-While NVIDIA currently does not have a bug bounty program, we do offer acknowledgement when an externally reported security issue is addressed under our coordinated vulnerability disclosure policy. Please visit our [Product Security Incident Response Team (PSIRT)](https://www.nvidia.com/en-us/security/psirt-policies/) policies page for more information.
+When reporting, include enough detail for the team to reproduce and triage the issue:
 
-## NVIDIA Product Security
+- A description of the issue and its potential impact.
+- The DAG, plugin, script, or file affected (path within this repo).
+- Steps to reproduce, expected behavior, and observed behavior.
+- Any proof-of-concept, logs, or screenshots that help diagnose the issue.
+- Your contact information for follow-up.
 
-For all security-related concerns, please visit NVIDIA's Product Security portal at https://www.nvidia.com/en-us/security
+PSIRT will acknowledge receipt and coordinate disclosure with the maintainers of this project. Please do **not** disclose the issue publicly until NVIDIA has had a reasonable opportunity to investigate and remediate.
+
+## Scope
+
+This policy covers:
+
+- Workflow code and plugin integrations under `airflow/dags/` and `airflow/plugins/`.
+- Deployment and runtime assets under `deploy/`.
+- Scripts and automation under `scripts/`, `make/`, and `nfs/`.
+- Documentation and sample payloads under `docs/` and `payload/`.
+
+It does not cover third-party software, container images, or services referenced by this project. Vulnerabilities in those should be reported to their respective maintainers; please still notify PSIRT if the issue is exploitable through this project.
+
+## Supported Versions
+
+Security fixes are applied to actively maintained branches of this repository. Consumers should use the latest branch or release available to them; older snapshots may not be patched in place.
+
+## Getting Help
+
+For non-security questions about using this project, see [README.md](README.md) and the documentation under `docs/`.

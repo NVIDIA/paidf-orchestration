@@ -156,7 +156,14 @@ Example override:
 - `vlm_service_url`, `llm_service_url`, `image_edit_service_url`
   (**string, conditionally required**): Required when `external_services=true`.
 - `vlm_model`, `llm_model`, `image_edit_model` (**string, optional**): Model
-  names for endpoints.
+  IDs sent to endpoints. Use values compatible with your deployed
+  containers/endpoints.
+- Default values used when omitted:
+  - `vlm_model`: `Qwen/Qwen3-VL-30B-A3B-Instruct-FP8`
+  - `llm_model`: `Qwen/Qwen2.5-14B-Instruct`
+  - `image_edit_model`: `Qwen/Qwen-Image-Edit-2511`
+- Specify these fields when your endpoint/container expects model IDs that are
+  different from the defaults, or when you want to override models per run.
 - `variable_distribution` (**object, optional**): Controls attribute variety.
   If omitted, PAS uses a deterministic default outfit.
 
@@ -208,7 +215,13 @@ Validation rules:
 - `threshold` (**float, optional**, default: `0.3`, range `0.0-1.0`)
 - `vlm_service_url`, `llm_service_url` (**string, conditionally required**):
   Required when `external_services=true`.
-- `vlm_model`, `llm_model` (**string, optional**)
+- `vlm_model`, `llm_model` (**string, optional**): Model IDs sent to
+  endpoints. Use values compatible with your deployed containers/endpoints.
+- Default values used when omitted:
+  - `vlm_model`: `Qwen/Qwen3-VL-30B-A3B-Instruct-FP8`
+  - `llm_model`: `Qwen/Qwen2.5-14B-Instruct`
+- Specify these fields when your endpoint/container expects model IDs that are
+  different from the defaults, or when you want to override models per run.
 
 ## Full Example: External Services + Variety
 
