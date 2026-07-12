@@ -22,8 +22,6 @@ Other documentation for this repository may be found under the docs/ directory.
 
 ## Disclaimer
 
-## Disclaimer
-
 This product is provided as an Early Access release for evaluation, testing, and feedback purposes only. It may be incomplete, contain defects, change without notice, or produce unexpected results. Features, performance, documentation, APIs, and compatibility may differ from the final generally available release.
 
 Use of this Early Access product is at your own risk. It should not be used in production environments or for business-critical workloads unless expressly approved by the provider. The provider makes no warranties, express or implied, regarding reliability, availability, accuracy, security, fitness for a particular purpose, or continued availability.
