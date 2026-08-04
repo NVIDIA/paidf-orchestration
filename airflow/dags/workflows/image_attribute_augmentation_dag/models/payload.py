@@ -1,7 +1,7 @@
 # SPDX-FileCopyrightText: Copyright (c) 2026 NVIDIA CORPORATION & AFFILIATES. All rights reserved.
 # SPDX-License-Identifier: Apache-2.0
 
-"""Payload models for the PAS DAG."""
+"""Payload models for the Image Attribute Augmentation DAG."""
 
 import logging
 from typing import Optional
@@ -17,8 +17,8 @@ from dags.shared.models import (
 logger = logging.getLogger(__name__)
 
 
-class PasDagPayloadConfig(BaseModel):
-    """Runtime payload schema for PAS pre-processing DAG."""
+class ImageAttributeAugmentationDagPayloadConfig(BaseModel):
+    """Runtime payload schema for Image Attribute Augmentation pre-processing DAG."""
 
     model_config = ConfigDict(extra="ignore")
 
@@ -36,7 +36,7 @@ class PasDagPayloadConfig(BaseModel):
         ),
     )
     output_directory: str = Field(
-        description="Storage output directory for PAS preprocessing artifacts.",
+        description="Storage output directory for Image Attribute Augmentation preprocessing artifacts.",
     )
     external_services: bool = Field(
         default=True,
@@ -53,10 +53,10 @@ class PasDagPayloadConfig(BaseModel):
         ),
     )
     cosmos: CosmosTaskConfig = Field(
-        description="Cosmos/augmentation task configuration for PAS image-edit execution.",
+        description="Cosmos/augmentation task configuration for Image Attribute Augmentation image-edit execution.",
     )
     auto_labeling: AutoLabelingTaskConfig = Field(
-        description="Auto-labeling task configuration for PAS image-edit execution.",
+        description="Auto-labeling task configuration for Image Attribute Augmentation image-edit execution.",
     )
 
     @model_validator(mode="before")

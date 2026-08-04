@@ -4,7 +4,7 @@
 # =============================================================================
 # ABOUT THIS FILE (blueprint config)
 # =============================================================================
-# This PAS workflow config is a template: the DAG fills in per-run media,
+# This Image Attribute Augmentation workflow config is a template: the DAG fills in per-run media,
 # output, and endpoint values while these YAML defaults define the actual
 # auto-labeling behavior.
 #
@@ -285,7 +285,7 @@ mcq_generation:
   #     requires endpoints.llm
   enabled: true
   mode: question-driven-vlm-llm
-  # Shared PAS MCQ settings. The default mode is question-driven-vlm-llm, so the
+  # Shared Image Attribute Augmentation MCQ settings. The default mode is question-driven-vlm-llm, so the
   # required domain input here is `question_bank_file`. Prompt paths below are
   # optional overrides; leave them null to use the shipped prompt for the
   # selected mode.

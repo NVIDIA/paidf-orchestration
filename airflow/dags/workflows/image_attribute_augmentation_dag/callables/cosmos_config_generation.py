@@ -1,7 +1,7 @@
 # SPDX-FileCopyrightText: Copyright (c) 2026 NVIDIA CORPORATION & AFFILIATES. All rights reserved.
 # SPDX-License-Identifier: Apache-2.0
 
-"""PAS image-edit config generation callable for CosmosTaskGroup."""
+"""Image Attribute Augmentation image-edit config generation callable for CosmosTaskGroup."""
 
 import ast
 import copy
@@ -20,8 +20,8 @@ from dags.shared.task_groups.input_preparation import require_prepared_input_fro
 from dags.shared.task_groups.service_lifecycle import require_service_endpoint_from_xcom
 from dags.shared.utils.msc_utils import write_file_to_directory
 
-PAS_CONFIG_DIR = Path(__file__).resolve().parents[1] / "configs"
-PAS_VERIFICATION_TEMPLATE_PATH = PAS_CONFIG_DIR / "cosmos_config.yaml"
+IMAGE_ATTRIBUTE_AUGMENTATION_CONFIG_DIR = Path(__file__).resolve().parents[1] / "configs"
+IMAGE_ATTRIBUTE_AUGMENTATION_VERIFICATION_TEMPLATE_PATH = IMAGE_ATTRIBUTE_AUGMENTATION_CONFIG_DIR / "cosmos_config.yaml"
 
 
 def _load_yaml_file(path: str, description: str) -> dict[str, Any]:
@@ -157,12 +157,12 @@ def _build_image_edit_config(
     return config
 
 
-def generate_pas_image_edit_configs(
+def generate_image_attribute_augmentation_image_edit_configs(
     cosmos_config: str | None = None,
     run_id: str = "",
     **context,
 ) -> list[str]:
-    """Generate PAS image-edit configs and return their storage paths."""
+    """Generate Image Attribute Augmentation image-edit configs and return their storage paths."""
     try:
         cosmos_task_config = CosmosTaskConfig.model_validate(ast.literal_eval(cosmos_config))
     except Exception as e:
@@ -181,7 +181,7 @@ def generate_pas_image_edit_configs(
 
     prepared = require_prepared_input_from_xcom(context["ti"])
     base_config = _load_yaml_file(
-        str(PAS_VERIFICATION_TEMPLATE_PATH), "PAS image-edit base configuration file"
+        str(IMAGE_ATTRIBUTE_AUGMENTATION_VERIFICATION_TEMPLATE_PATH), "Image Attribute Augmentation image-edit base configuration file"
     )
     direct_config, lookup_config = cosmos_task_config.variable_distribution.split_variables()
     conditional_variables = cosmos_task_config.variable_distribution.conditional_variables

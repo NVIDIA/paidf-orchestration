@@ -1,7 +1,7 @@
 # SPDX-FileCopyrightText: Copyright (c) 2026 NVIDIA CORPORATION & AFFILIATES. All rights reserved.
 # SPDX-License-Identifier: Apache-2.0
 
-"""PAS image pre-processing helpers for pane combination."""
+"""Image Attribute Augmentation image pre-processing helpers for pane combination."""
 
 from __future__ import annotations
 
@@ -89,7 +89,7 @@ def _relative_remote_path(remote_path: str, input_path: str) -> str:
     if relative_path:
         return relative_path
 
-    # Fall back to the final path components. PAS image files are expected to
+    # Fall back to the final path components. Image Attribute Augmentation image files are expected to
     # live under <person_id>/<image_file>, so keep the last two components.
     parts = remote_path.rstrip("/").split("/")
     if len(parts) >= 2:
@@ -98,7 +98,7 @@ def _relative_remote_path(remote_path: str, input_path: str) -> str:
 
 
 def stage_input_images(input_path: str, staging_dir: str) -> str:
-    """Download PAS image objects from storage into a local directory tree."""
+    """Download Image Attribute Augmentation image objects from storage into a local directory tree."""
     input_dir = normalize_directory_path(input_path)
     staging_root = Path(staging_dir)
     staging_root.mkdir(parents=True, exist_ok=True)
@@ -116,14 +116,14 @@ def stage_input_images(input_path: str, staging_dir: str) -> str:
         downloaded += 1
 
     if downloaded == 0:
-        raise AirflowFailException(f"No PAS image files found under {input_dir}")
+        raise AirflowFailException(f"No Image Attribute Augmentation image files found under {input_dir}")
 
-    logger.info("Downloaded %d PAS image(s) from %s", downloaded, input_dir)
+    logger.info("Downloaded %d Image Attribute Augmentation image(s) from %s", downloaded, input_dir)
     return str(staging_root)
 
 
 def upload_combined_outputs(combined_dir: Path, output_directory: str) -> int:
-    """Upload combined PAS images and metadata files to storage."""
+    """Upload combined Image Attribute Augmentation images and metadata files to storage."""
     output_dir = normalize_directory_path(output_directory)
     uploaded = 0
     for path in sorted(combined_dir.iterdir()):
@@ -137,9 +137,9 @@ def upload_combined_outputs(combined_dir: Path, output_directory: str) -> int:
         uploaded += 1
 
     if uploaded == 0:
-        raise AirflowFailException(f"No combined PAS outputs found in {combined_dir}")
+        raise AirflowFailException(f"No combined Image Attribute Augmentation outputs found in {combined_dir}")
 
-    logger.info("Uploaded %d PAS preprocessing artifact(s) to %s", uploaded, output_dir)
+    logger.info("Uploaded %d Image Attribute Augmentation preprocessing artifact(s) to %s", uploaded, output_dir)
     return uploaded
 
 
@@ -148,7 +148,7 @@ def combine_panes(
     input_path: str,
     output_directory: str | None = None,
 ) -> None:
-    """Combine PAS ID folders into multi-pane images and metadata files."""
+    """Combine Image Attribute Augmentation ID folders into multi-pane images and metadata files."""
     run_base_path = Path(run_base)
     staging_dir = run_base_path / "staged_imgs"
     output_root = run_base_path / "combined_imgs"
@@ -181,6 +181,6 @@ def combine_panes(
 
     logger.info("combine_panes done: success=%d skipped=%d", success, skipped)
     if success == 0:
-        raise AirflowFailException(f"No PAS IDs were successfully combined under {input_root}")
+        raise AirflowFailException(f"No Image Attribute Augmentation IDs were successfully combined under {input_root}")
     if output_directory:
         upload_combined_outputs(output_root, output_directory)

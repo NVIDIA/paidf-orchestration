@@ -28,7 +28,7 @@ NonNegativeWeight: TypeAlias = Annotated[StrictFloat, Field(ge=0)]
 
 
 def default_variable_distribution() -> dict[str, Any]:
-    """Return the deterministic PAS variable distribution used when omitted."""
+    """Return the deterministic Image Attribute Augmentation variable distribution used when omitted."""
     return {
         "variables": {
             "top_outer_color": {"black": 1.0},
@@ -323,7 +323,7 @@ class CosmosTaskConfig(BaseModel):
         validate_default=True,
         description=(
             "Variable distribution sampled once per generated Cosmos augmentation config. "
-            "PAS reads this field directly. When omitted, this defaults to a "
-            "deterministic single-image PAS distribution."
+            "Image Attribute Augmentation reads this field directly. When omitted, this defaults to a "
+            "deterministic single-image Image Attribute Augmentation distribution."
         ),
     )

@@ -1,7 +1,7 @@
 # SPDX-FileCopyrightText: Copyright (c) 2026 NVIDIA CORPORATION & AFFILIATES. All rights reserved.
 # SPDX-License-Identifier: Apache-2.0
 
-"""Output validation callable for PAS image-edit augmentation."""
+"""Output validation callable for Image Attribute Augmentation image-edit augmentation."""
 
 import ast
 from typing import Any
@@ -16,12 +16,12 @@ from dags.shared.task_groups.input_preparation import require_prepared_input_fro
 from dags.shared.utils.msc_utils import is_file
 
 
-def validate_pas_image_edit_outputs(
+def validate_image_attribute_augmentation_image_edit_outputs(
     cosmos_config: str | None = None,
     run_id: str = "",
     **context,
 ) -> dict[str, Any]:
-    """Validate PAS image-edit outputs using each generated config's output path."""
+    """Validate Image Attribute Augmentation image-edit outputs using each generated config's output path."""
     try:
         cosmos_task_config = CosmosTaskConfig.model_validate(ast.literal_eval(cosmos_config))
         prepared = require_prepared_input_from_xcom(context["ti"])
@@ -59,4 +59,4 @@ def validate_pas_image_edit_outputs(
     except AirflowFailException:
         raise
     except Exception as e:
-        raise AirflowFailException(f"PAS image-edit output validation failed: {e}") from e
+        raise AirflowFailException(f"Image Attribute Augmentation image-edit output validation failed: {e}") from e

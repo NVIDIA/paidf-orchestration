@@ -28,7 +28,7 @@ PAIDF Orchestration is a helm chart that is deployed on a Kubernetes cluster. Be
 
 2. **Storage**: Default Helm values expect a **`nfs`** StorageClass for PostgreSQL, DAG, plugin, dependency, and model-cache PVCs. If your cluster does not already provide one, run `make install nfs` first. If you use a different `ReadWriteMany` StorageClass, set `storageClassName` in `deploy/values.yaml`. See [Configure NFS storage](advanced-usage.md#configure-nfs-storage) for more details.
 
-3. **GPUs**: GPUs are required to run the PAS DAG. The cluster need the [NVIDIA GPU Operator](https://docs.nvidia.com/datacenter/cloud-native/gpu-operator/latest/overview.html) (or equivalent) so pods can request `nvidia.com/gpu`. A minimum of 8x H100-class (NVIDIA Hopper) RTX6000 PRO or B200-class (NVIDIA Blackwell) GPUs are recommended for the quickstart workflow to complete successfully.
+3. **GPUs**: GPUs are required to run the Image Attribute Augmentation DAG. The cluster need the [NVIDIA GPU Operator](https://docs.nvidia.com/datacenter/cloud-native/gpu-operator/latest/overview.html) (or equivalent) so pods can request `nvidia.com/gpu`. A minimum of 8x H100-class (NVIDIA Hopper) RTX6000 PRO or B200-class (NVIDIA Blackwell) GPUs are recommended for the quickstart workflow to complete successfully.
 
 ### S3 buckets and credentials
 
@@ -117,7 +117,7 @@ Once the secrets are ready, set them up in the repo using the following steps:
 
 5. **Construct and Upload Input Data**:
 
-   The PAS workflow requires a user-provided image dataset in S3. Build a local
+   The Image Attribute Augmentation workflow requires a user-provided image dataset in S3. Build a local
    dataset with one folder per person ID, then upload that folder tree to the
    input location in S3 expected by the starter payloads:
 
@@ -130,7 +130,7 @@ Once the secrets are ready, set them up in the repo using the following steps:
          0002-front.png
    ```
 
-   Input data is expected to be images of people for the PAS workflow. Input data may be taken from https://github.com/NjtechCVLab/RSTPReid-Dataset or similar open source dataset if you do not have input images available.
+   Input data is expected to be images of people for the Image Attribute Augmentation workflow. Input data may be taken from https://github.com/NjtechCVLab/RSTPReid-Dataset or similar open source dataset if you do not have input images available.
 
 6. **Create a Starter Payload**
 
@@ -154,9 +154,9 @@ Once the secrets are ready, set them up in the repo using the following steps:
    > Note: Only run one workflow at a time to avoid long queueing times or unexpected issues
 
    1. Starting from the Airflow home page, select `Dags` in the left side bar.
-   2. Select `pas_dag_k8s` from the list that appears.
+   2. Select `image_attribute_augmentation_dag_k8s` from the list that appears.
    3. Click the `trigger` button in the top right corner of the page that appears.
-   4. Under `Run Parameters`, update PasDagPayloadConfig with the payload from step 6. Leave other fields as their default values.
+   4. Under `Run Parameters`, update ImageAttributeAugmentationDagPayloadConfig with the payload from step 6. Leave other fields as their default values.
    5. Start the run by pressing the `Trigger` button.
 
 8. **Monitor or Stop an Active Run**:
@@ -196,7 +196,7 @@ Once the secrets are ready, set them up in the repo using the following steps:
 
 ## Next Steps
 
-Visit the [PAS Payload Guide](payload-guide.md) for runtime payload authoring, and [Advanced Usage](advanced-usage.md) for deployment customization.
+Visit the [Image Attribute Augmentation Payload Guide](payload-guide.md) for runtime payload authoring, and [Advanced Usage](advanced-usage.md) for deployment customization.
 
 ## Appendix
 

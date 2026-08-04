@@ -1,7 +1,7 @@
-# PAS Payload Guide
+# Image Attribute Augmentation Payload Guide
 
 This guide describes the JSON payload you provide when triggering
-`pas_dag_k8s` in Airflow.
+`image_attribute_augmentation_dag_k8s` in Airflow.
 
 ## Quick Start: Starter Payloads
 
@@ -99,9 +99,9 @@ Consistency constraints:
 
 ## Top-Level Fields
 
-- `input_path` (**string, required**): S3 location of your input dataset. PAS
+- `input_path` (**string, required**): S3 location of your input dataset. Image Attribute Augmentation
   expects one folder per person ID.
-- `output_directory` (**string, required**): Base S3 location for outputs. PAS
+- `output_directory` (**string, required**): Base S3 location for outputs. Image Attribute Augmentation
   writes into `<output_directory>/<run_id>/...`.
 - `external_services` (**boolean, optional**, default: `true`): Service mode.
   Set `false` to deploy internal services, `true` to call your endpoints. There
@@ -109,12 +109,12 @@ Consistency constraints:
 - `max_imgs` (**integer, optional**, default: `1`): Maximum number of person-ID
   folders to process. `0` or negative means process all.
 - `service_lifecycle` (**object, optional**): Internal service deployment flags.
-  Usually omitted; PAS auto-populates from `external_services`. Provide it only
+  Usually omitted; Image Attribute Augmentation auto-populates from `external_services`. Provide it only
   when you want to override per-service replica counts.
-- `cosmos` (**object, optional**): Augmentation task config. If omitted, PAS
+- `cosmos` (**object, optional**): Augmentation task config. If omitted, Image Attribute Augmentation
   auto-populates mode/output fields from top-level values.
 - `auto_labeling` (**object, optional**): Auto-labeling task config. If omitted,
-  PAS auto-populates mode/output fields from top-level values.
+  Image Attribute Augmentation auto-populates mode/output fields from top-level values.
 
 ## `service_lifecycle` (Internal Service Overrides)
 
@@ -129,10 +129,10 @@ Fields:
 
 Defaults from top-level `external_services`:
 
-- If `external_services=false`, PAS enables all three internal services by default.
-- If `external_services=true`, PAS disables all three internal services by default.
+- If `external_services=false`, Image Attribute Augmentation enables all three internal services by default.
+- If `external_services=true`, Image Attribute Augmentation disables all three internal services by default.
 
-If you set `enabled` values that conflict with top-level `external_services`, PAS
+If you set `enabled` values that conflict with top-level `external_services`, Image Attribute Augmentation
 normalizes `enabled` to match top-level mode during validation (and logs a
 warning). Replica counts you set are kept.
 
@@ -165,7 +165,7 @@ Example override:
 - Specify these fields when your endpoint/container expects model IDs that are
   different from the defaults, or when you want to override models per run.
 - `variable_distribution` (**object, optional**): Controls attribute variety.
-  If omitted, PAS uses a deterministic default outfit.
+  If omitted, Image Attribute Augmentation uses a deterministic default outfit.
 
 > **Internal image-edit replicas and pool size:** If you deploy more than one
 > internal image-edit replica (`service_lifecycle.image_edit_service.replicas`),
@@ -262,7 +262,7 @@ Validation rules:
 ## Trigger the Run
 
 1. Open the Airflow UI.
-2. Enable `pas_dag_k8s`.
+2. Enable `image_attribute_augmentation_dag_k8s`.
 3. Choose **Trigger DAG w/ config**.
 4. Paste your payload JSON.
 5. Start the run.
