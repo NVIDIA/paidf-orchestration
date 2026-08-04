@@ -1,7 +1,7 @@
 # SPDX-FileCopyrightText: Copyright (c) 2026 NVIDIA CORPORATION & AFFILIATES. All rights reserved.
 # SPDX-License-Identifier: Apache-2.0
 
-"""PAS auto-labeling config generation callable."""
+"""Image Attribute Augmentation auto-labeling config generation callable."""
 
 import ast
 import copy
@@ -17,28 +17,28 @@ from dags.shared.task_groups.service_lifecycle import require_service_endpoint_f
 from dags.shared.utils.msc_utils import convert_msc_to_storage_url, write_file_to_directory
 from dags.shared.utils.xcom import pull_and_validate_xcom
 
-PAS_AUTO_LABELING_CONFIG_TEMPLATE_PATH = (
+IMAGE_ATTRIBUTE_AUGMENTATION_AUTO_LABELING_CONFIG_TEMPLATE_PATH = (
     Path(__file__).resolve().parents[1] / "configs" / "al_config.yaml"
 )
 
 
 def _load_config_template() -> dict[str, Any]:
     try:
-        with open(PAS_AUTO_LABELING_CONFIG_TEMPLATE_PATH, "r") as config_file:
+        with open(IMAGE_ATTRIBUTE_AUGMENTATION_AUTO_LABELING_CONFIG_TEMPLATE_PATH, "r") as config_file:
             template = yaml.safe_load(config_file)
     except FileNotFoundError as e:
         raise AirflowFailException(
-            f"PAS auto-labeling config template not found: {PAS_AUTO_LABELING_CONFIG_TEMPLATE_PATH}"
+            f"Image Attribute Augmentation auto-labeling config template not found: {IMAGE_ATTRIBUTE_AUGMENTATION_AUTO_LABELING_CONFIG_TEMPLATE_PATH}"
         ) from e
     except Exception as e:
         raise AirflowFailException(
-            f"Failed to load PAS auto-labeling config template "
-            f"{PAS_AUTO_LABELING_CONFIG_TEMPLATE_PATH}: {e}"
+            f"Failed to load Image Attribute Augmentation auto-labeling config template "
+            f"{IMAGE_ATTRIBUTE_AUGMENTATION_AUTO_LABELING_CONFIG_TEMPLATE_PATH}: {e}"
         ) from e
 
     if not isinstance(template, dict):
         raise AirflowFailException(
-            f"Invalid PAS auto-labeling config template: {PAS_AUTO_LABELING_CONFIG_TEMPLATE_PATH}"
+            f"Invalid Image Attribute Augmentation auto-labeling config template: {IMAGE_ATTRIBUTE_AUGMENTATION_AUTO_LABELING_CONFIG_TEMPLATE_PATH}"
         )
     return template
 
@@ -73,14 +73,14 @@ def _build_config(
     return generated_config
 
 
-def generate_pas_auto_labeling_configs(
+def generate_image_attribute_augmentation_auto_labeling_configs(
     auto_labeling_config: str | None = None,
     run_id: str = "",
     input_xcom_task_id: str = "",
     input_xcom_key: str = "return_value",
     **context,
 ) -> list[str]:
-    """Generate PAS auto-labeling configs and return mapped ``--config`` arguments."""
+    """Generate Image Attribute Augmentation auto-labeling configs and return mapped ``--config`` arguments."""
     try:
         al_config = AutoLabelingTaskConfig.model_validate(ast.literal_eval(auto_labeling_config))
         vlm_base_url = al_config.vlm_service_url
@@ -125,4 +125,4 @@ def generate_pas_auto_labeling_configs(
         return config_args
 
     except Exception as e:
-        raise AirflowFailException(f"PAS auto-labeling config generation failed: {e}") from e
+        raise AirflowFailException(f"Image Attribute Augmentation auto-labeling config generation failed: {e}") from e

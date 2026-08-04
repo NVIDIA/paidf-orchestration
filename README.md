@@ -8,7 +8,7 @@ PAIDF Orchestration includes the following workflows, also referred to as DAGs (
 
 | DAG | What It Does |
 |-----|--------------|
-| **People Attribute Search (PAS)** | The Person Attribute Search (PAS) Image Augmentation Pipeline augments existing person object crop datasets by generating controlled variations of clothing, colors, footwear, and other visible person attributes. |
+| **Image Attribute Augmentation** | The Image Attribute Augmentation pipeline augments existing person object crop datasets by generating controlled variations of clothing, colors, footwear, and other visible person attributes. |
 
 ## Architecture
 

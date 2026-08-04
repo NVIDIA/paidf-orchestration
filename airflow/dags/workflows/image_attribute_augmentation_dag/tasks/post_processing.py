@@ -1,7 +1,7 @@
 # SPDX-FileCopyrightText: Copyright (c) 2026 NVIDIA CORPORATION & AFFILIATES. All rights reserved.
 # SPDX-License-Identifier: Apache-2.0
 
-"""Post-processing task for PAS auto-labeling outputs."""
+"""Post-processing task for Image Attribute Augmentation auto-labeling outputs."""
 
 from __future__ import annotations
 
@@ -24,7 +24,7 @@ from dags.shared.utils.video_input_utils import (
     get_relative_storage_path,
     join_storage_base_path_filename,
 )
-from dags.workflows.pas_dag.models import PasDagPayloadConfig
+from dags.workflows.image_attribute_augmentation_dag.models import ImageAttributeAugmentationDagPayloadConfig
 
 logger = logging.getLogger(__name__)
 
@@ -241,7 +241,7 @@ def compute_metadata(entries: list[dict[str, Any]], dataset_dir: str) -> dict[st
     source_ids = {entry["source_person_key"] for entry in entries}
 
     return {
-        "description": "PAS auto-labeling dataset from augmented inputs",
+        "description": "Image Attribute Augmentation auto-labeling dataset from augmented inputs",
         "total_ids": len(entries),
         "original_ids": len(source_ids),
         "total_scenes": len(entries),
@@ -260,10 +260,10 @@ def compute_metadata(entries: list[dict[str, Any]], dataset_dir: str) -> dict[st
     }
 
 
-def _validate_payload(payload: str | dict[str, Any]) -> PasDagPayloadConfig:
+def _validate_payload(payload: str | dict[str, Any]) -> ImageAttributeAugmentationDagPayloadConfig:
     if isinstance(payload, dict):
-        return PasDagPayloadConfig.model_validate(payload)
-    return PasDagPayloadConfig.model_validate(ast.literal_eval(payload))
+        return ImageAttributeAugmentationDagPayloadConfig.model_validate(payload)
+    return ImageAttributeAugmentationDagPayloadConfig.model_validate(ast.literal_eval(payload))
 
 
 def generate_augmented_dataset(
@@ -274,7 +274,7 @@ def generate_augmented_dataset(
     output_json: str = DEFAULT_OUTPUT_JSON,
     **context,
 ) -> dict[str, Any]:
-    """Create the final PAS dataset by copying auto-labeling DAFT scene outputs."""
+    """Create the final Image Attribute Augmentation dataset by copying auto-labeling DAFT scene outputs."""
     try:
         if not payload:
             raise AirflowFailException("Payload is required")
@@ -325,7 +325,7 @@ def generate_augmented_dataset(
         )
 
         logger.info(
-            "PAS post-processing complete: scenes=%d output=%s",
+            "Image Attribute Augmentation post-processing complete: scenes=%d output=%s",
             len(entries),
             output_json_path,
         )
@@ -341,4 +341,4 @@ def generate_augmented_dataset(
     except AirflowFailException:
         raise
     except Exception as e:
-        raise AirflowFailException(f"PAS post-processing failed: {e}") from e
+        raise AirflowFailException(f"Image Attribute Augmentation post-processing failed: {e}") from e

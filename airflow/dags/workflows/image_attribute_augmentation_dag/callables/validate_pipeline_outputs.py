@@ -1,7 +1,7 @@
 # SPDX-FileCopyrightText: Copyright (c) 2026 NVIDIA CORPORATION & AFFILIATES. All rights reserved.
 # SPDX-License-Identifier: Apache-2.0
 
-"""PAS end-of-pipeline output validation callable."""
+"""Image Attribute Augmentation end-of-pipeline output validation callable."""
 
 from __future__ import annotations
 
@@ -16,8 +16,8 @@ from dags.shared.utils.video_input_utils import (
     get_relative_storage_path,
     normalize_directory_path,
 )
-from dags.workflows.pas_dag.models import PasDagPayloadConfig
-from dags.workflows.pas_dag.tasks.post_processing import (
+from dags.workflows.image_attribute_augmentation_dag.models import ImageAttributeAugmentationDagPayloadConfig
+from dags.workflows.image_attribute_augmentation_dag.tasks.post_processing import (
     DEFAULT_OUTPUT_JSON,
     get_augmented_dataset_dir,
     get_dataset_scene_dir,
@@ -28,7 +28,7 @@ DATASET_SCENE_OUTPUT_DIRS = ("raw", "contextual", "task", "sidecars")
 
 
 class PipelineOutputValidationError(Exception):
-    """Raised when required PAS pipeline outputs are missing or invalid."""
+    """Raised when required Image Attribute Augmentation pipeline outputs are missing or invalid."""
 
     def __init__(self, errors: list[str]):
         self.errors = errors
@@ -138,7 +138,7 @@ def verify_cosmos_run_files(
     person_key: str,
     aug_idx: int,
 ) -> list[str]:
-    """Return missing required PAS image-edit artifact paths for one run directory."""
+    """Return missing required Image Attribute Augmentation image-edit artifact paths for one run directory."""
     run_dir = str(URL(output_directory.rstrip("/")) / run_id / "cosmos" / person_key / str(aug_idx))
     missing = []
     for fname in REQUIRED_COSMOS_FILES:
@@ -307,7 +307,7 @@ def verify_augmented_dataset(
 
 
 def validate_pipeline_outputs(payload: dict[str, Any], run_id: str) -> None:
-    """Validate end-of-pipeline storage artifacts for a PAS run."""
+    """Validate end-of-pipeline storage artifacts for a Image Attribute Augmentation run."""
     output_directory = (payload.get("output_directory") or "").strip()
     if not output_directory:
         raise PipelineOutputValidationError(["Payload has no output_directory"])
@@ -358,18 +358,18 @@ def validate_pipeline_outputs(payload: dict[str, Any], run_id: str) -> None:
         raise PipelineOutputValidationError(errors)
 
 
-def validate_pas_pipeline_outputs(
+def validate_image_attribute_augmentation_pipeline_outputs(
     payload: str | dict[str, Any] | None = None,
     run_id: str = "",
     **context,
 ) -> None:
-    """Validate PAS pipeline storage outputs for the current run."""
+    """Validate Image Attribute Augmentation pipeline storage outputs for the current run."""
     del context
     try:
         if isinstance(payload, dict):
-            config = PasDagPayloadConfig.model_validate(payload)
+            config = ImageAttributeAugmentationDagPayloadConfig.model_validate(payload)
         else:
-            config = PasDagPayloadConfig.model_validate(ast.literal_eval(payload or "{}"))
+            config = ImageAttributeAugmentationDagPayloadConfig.model_validate(ast.literal_eval(payload or "{}"))
         validate_pipeline_outputs(config.model_dump(), run_id)
     except PipelineOutputValidationError as e:
         raise AirflowFailException(

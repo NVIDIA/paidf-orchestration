@@ -1,7 +1,7 @@
 # SPDX-FileCopyrightText: Copyright (c) 2026 NVIDIA CORPORATION & AFFILIATES. All rights reserved.
 # SPDX-License-Identifier: Apache-2.0
 
-"""Airflow DAG for PAS preprocessing before augmentation runs."""
+"""Airflow DAG for Image Attribute Augmentation preprocessing before augmentation runs."""
 
 from __future__ import annotations
 
@@ -28,25 +28,25 @@ from dags.shared.utils.dag_utils import (
     on_success_callback,
     resolve_dag_timeout,
 )
-from dags.workflows.pas_dag.callables import (
-    generate_pas_auto_labeling_configs,
-    generate_pas_image_edit_configs,
-    prepare_pas_input,
-    validate_pas_image_edit_outputs,
-    validate_pas_pipeline_outputs,
+from dags.workflows.image_attribute_augmentation_dag.callables import (
+    generate_image_attribute_augmentation_auto_labeling_configs,
+    generate_image_attribute_augmentation_image_edit_configs,
+    prepare_image_attribute_augmentation_input,
+    validate_image_attribute_augmentation_image_edit_outputs,
+    validate_image_attribute_augmentation_pipeline_outputs,
 )
-from dags.workflows.pas_dag.models import PasDagPayloadConfig
-from dags.workflows.pas_dag.tasks import (
+from dags.workflows.image_attribute_augmentation_dag.models import ImageAttributeAugmentationDagPayloadConfig
+from dags.workflows.image_attribute_augmentation_dag.tasks import (
     generate_augmented_dataset as generate_augmented_dataset_callable,
 )
 
 logger = logging.getLogger(__name__)
 
-PAS_CONFIG_DIR = Path(__file__).resolve().parent / "configs"
+IMAGE_ATTRIBUTE_AUGMENTATION_CONFIG_DIR = Path(__file__).resolve().parent / "configs"
 
 
-class PasDAGBuilder:
-    """Builder class for platform-specific PAS DAGs."""
+class ImageAttributeAugmentationDAGBuilder:
+    """Builder class for platform-specific Image Attribute Augmentation DAGs."""
 
     def __init__(self, manifest_path: str | Path, logging_level: str = "INFO"):
         logging_level = os.environ.get("LOGGING_LEVEL", logging_level)
@@ -56,10 +56,10 @@ class PasDAGBuilder:
         try:
             self.builder = ComponentBuilder(manifest_path=self.manifest_path)
         except FileNotFoundError as e:
-            raise AirflowConfigException(f"PAS manifest not found at {self.manifest_path}") from e
+            raise AirflowConfigException(f"Image Attribute Augmentation manifest not found at {self.manifest_path}") from e
         except Exception as e:
             raise AirflowConfigException(
-                f"Failed to load PAS manifest from {self.manifest_path}: {e}"
+                f"Failed to load Image Attribute Augmentation manifest from {self.manifest_path}: {e}"
             ) from e
 
     @staticmethod
@@ -86,7 +86,7 @@ class PasDAGBuilder:
             schedule=None,
             catchup=False,
             max_active_runs=1,
-            tags=tags or ["sdg", "pas", "preprocessing"],
+            tags=tags or ["sdg", "image_attribute_augmentation", "preprocessing"],
             params={
                 "payload": Param(
                     default={},
@@ -97,11 +97,11 @@ class PasDAGBuilder:
             on_failure_callback=on_failure_callback,
         ) as dag:
             validate_payload = ValidatePayloadTaskGroup(
-                model_class=PasDagPayloadConfig
+                model_class=ImageAttributeAugmentationDagPayloadConfig
             ).get_validate_payload_task(task_id="validate_payload")
 
             input_preparation = InputPreparationTaskGroup(
-                prepare_input_callable=prepare_pas_input,
+                prepare_input_callable=prepare_image_attribute_augmentation_input,
             ).get_input_preparation_task_group()
 
             service_lifecycle = ServiceLifecycleTaskGroup(
@@ -119,8 +119,8 @@ class PasDAGBuilder:
 
             cosmos_augmentation = CosmosTaskGroup(
                 builder=self.builder,
-                config_generation_callable=generate_pas_image_edit_configs,
-                output_validation_callable=validate_pas_image_edit_outputs,
+                config_generation_callable=generate_image_attribute_augmentation_image_edit_configs,
+                output_validation_callable=validate_image_attribute_augmentation_image_edit_outputs,
                 task_config="{{ (ti.xcom_pull(task_ids='validate_payload', key='return_value') or {}).get('cosmos', {}) }}",
             ).get_cosmos_augmentation_task_group()
 
@@ -130,7 +130,7 @@ class PasDAGBuilder:
                 input_xcom_key="return_value",
                 task_config="{{ (ti.xcom_pull(task_ids='validate_payload', key='return_value') or {}).get('auto_labeling', {}) }}",
                 group_id="auto_labeling",
-                prepare_args_callable=generate_pas_auto_labeling_configs,
+                prepare_args_callable=generate_image_attribute_augmentation_auto_labeling_configs,
             ).get_auto_labeling_task_group()
 
             generate_augmented_dataset = PythonOperator(
@@ -154,7 +154,7 @@ class PasDAGBuilder:
             )
 
             validated_output = ValidatedOutputTaskGroup(
-                validation_callable=validate_pas_pipeline_outputs,
+                validation_callable=validate_image_attribute_augmentation_pipeline_outputs,
             ).get_validated_output_task_group()
 
             validate_payload >> input_preparation
@@ -181,7 +181,7 @@ class PasDAGBuilder:
         return dag
 
 
-def _create_pas_dag_if_manifest_exists(
+def _create_image_attribute_augmentation_dag_if_manifest_exists(
     manifest_path: str | Path,
     platform: str,
     description: str,
@@ -190,19 +190,19 @@ def _create_pas_dag_if_manifest_exists(
     manifest_path = Path(manifest_path)
     if not manifest_path.exists():
         logger.info(
-            "PAS %s manifest does not exist at %s, skipping DAG generation", platform, manifest_path
+            "Image Attribute Augmentation %s manifest does not exist at %s, skipping DAG generation", platform, manifest_path
         )
         return None
 
     try:
-        return PasDAGBuilder(manifest_path=manifest_path).build_dag(
-            dag_id=f"pas_dag_{platform}",
+        return ImageAttributeAugmentationDAGBuilder(manifest_path=manifest_path).build_dag(
+            dag_id=f"image_attribute_augmentation_dag_{platform}",
             description=description,
             tags=tags,
         )
     except Exception:
         logger.warning(
-            "Failed to load PAS %s manifest at %s, skipping %s DAG generation",
+            "Failed to load Image Attribute Augmentation %s manifest at %s, skipping %s DAG generation",
             platform,
             manifest_path,
             platform,
@@ -214,12 +214,12 @@ def _create_pas_dag_if_manifest_exists(
 # --- DAG Generation ---
 # Each manifest produces its own DAG. Users see one DAG per platform in the Airflow UI.
 
-_PAS_K8S_MANIFEST = os.environ.get(
-    "PAS_K8S_MANIFEST_PATH", PAS_CONFIG_DIR / "pas_k8s_manifest.yaml"
+_IMAGE_ATTRIBUTE_AUGMENTATION_K8S_MANIFEST = os.environ.get(
+    "IMAGE_ATTRIBUTE_AUGMENTATION_K8S_MANIFEST_PATH", IMAGE_ATTRIBUTE_AUGMENTATION_CONFIG_DIR / "image_attribute_augmentation_k8s_manifest.yaml"
 )
-pas_dag_k8s = _create_pas_dag_if_manifest_exists(
-    manifest_path=_PAS_K8S_MANIFEST,
+image_attribute_augmentation_dag_k8s = _create_image_attribute_augmentation_dag_if_manifest_exists(
+    manifest_path=_IMAGE_ATTRIBUTE_AUGMENTATION_K8S_MANIFEST,
     platform="k8s",
-    description="Run the PAS preprocessing workflow on Native Kubernetes",
-    tags=["sdg", "kubernetes", "pas", "preprocessing"],
+    description="Run the Image Attribute Augmentation preprocessing workflow on Native Kubernetes",
+    tags=["sdg", "kubernetes", "image_attribute_augmentation", "preprocessing"],
 )
