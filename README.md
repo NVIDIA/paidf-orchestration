@@ -9,6 +9,7 @@ PAIDF Orchestration includes the following workflows, also referred to as DAGs (
 | DAG | What It Does |
 |-----|--------------|
 | **Image Attribute Augmentation** | The Image Attribute Augmentation pipeline augments existing person object crop datasets by generating controlled variations of clothing, colors, footwear, and other visible person attributes. |
+| **Event Video Generation** | The Event Video Generation pipeline takes a seed image, and creates videos from it showing a controlled variation of event types, such as fires, falling, shoplifting, fighting and more. |
 
 ## Architecture
 

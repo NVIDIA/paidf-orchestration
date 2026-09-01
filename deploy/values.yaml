@@ -258,6 +258,12 @@ airflow:
     - envName: "AIRFLOW_CONN_KUBERNETES_REMOTE"
       secretName: "kubernetes-remote-connection-secret"
       secretKey: "connection"
+    # Lets task pods read their own run's timings back from the REST API for performance
+    # reporting. Task pods have no metadata-database access and their execution-API token
+    # does not cover task instances, so this is the only route to per-task durations.
+    - envName: "AIRFLOW_CONN_AIRFLOW_API_DEFAULT"
+      secretName: "airflow-api-connection-secret"
+      secretKey: "connection"
     - envName: "AIRFLOW_VAR_HF_TOKEN"
       secretName: "hf-token-secret"
       secretKey: "hf_token"
@@ -459,14 +465,20 @@ airflowPools:
   pools:
     - name: "k8s_gpu_1"
       slots: 8
-      description: "K8s H100/L40S tasks and endpoints"
+      description: "K8s H100 tasks and endpoints"
       includeDeferred: true
-    - name: "internal_image_edit_service_pool"
-      slots: 1
-      description: "Internal image-edit service pool"
+    - name: "iaa_internal_image_edit_service_pool"
+      slots: 2
+      description: "Image Attribute Augmentation internal image-edit service pool"
       includeDeferred: true
     - name: "external_image_edit_service_pool"
-      slots: 16
+      slots: 20
       description: "External image-edit service pool"
+    - name: "internal_image2video_service_pool"
+      slots: 2
+      description: "Internal image-to-video service pool"
       includeDeferred: true
+    - name: "external_image2video_service_pool"
+      slots: 1
+      description: "External image-to-video service pool"
 

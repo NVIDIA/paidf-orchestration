@@ -16,22 +16,23 @@ from airflow.exceptions import AirflowFailException
 from yarl import URL
 
 from dags.shared.models import ConditionalVariableConfig, CosmosTaskConfig
+from dags.shared.task_groups.cosmos import load_cosmos_base_config
 from dags.shared.task_groups.input_preparation import require_prepared_input_from_xcom
 from dags.shared.task_groups.service_lifecycle import require_service_endpoint_from_xcom
 from dags.shared.utils.msc_utils import write_file_to_directory
 
 IMAGE_ATTRIBUTE_AUGMENTATION_CONFIG_DIR = Path(__file__).resolve().parents[1] / "configs"
-IMAGE_ATTRIBUTE_AUGMENTATION_VERIFICATION_TEMPLATE_PATH = IMAGE_ATTRIBUTE_AUGMENTATION_CONFIG_DIR / "cosmos_config.yaml"
+IMAGE_ATTRIBUTE_AUGMENTATION_VERIFICATION_TEMPLATE_PATH = (
+    IMAGE_ATTRIBUTE_AUGMENTATION_CONFIG_DIR / "cosmos_config.yaml"
+)
 
 
 def _load_yaml_file(path: str, description: str) -> dict[str, Any]:
-    try:
-        with open(path, "r") as config_file:
-            return yaml.safe_load(config_file)
-    except FileNotFoundError as e:
-        raise AirflowFailException(f"Failed to read {description} at {path}: {e}") from e
-    except Exception as e:
-        raise AirflowFailException(f"Failed to parse {description} at {path}: {e}") from e
+    return load_cosmos_base_config(
+        base_config_path=None,
+        default_path=path,
+        description=description,
+    )
 
 
 def _normalize_distribution(distribution: dict[str, float]) -> dict[str, float]:
@@ -52,7 +53,7 @@ def _sample_variable_values(
     lookup_config: dict[str, dict[str, dict[str, float]]],
     conditional_variables: dict[str, ConditionalVariableConfig] | None,
     n_samples: int,
-    seed: int = 42,
+    seed: int = None,
 ) -> tuple[list[dict[str, str]], list[dict[str, str]]]:
     random.seed(seed)
     conditional_variables = conditional_variables or {}
@@ -111,6 +112,29 @@ def _log_realized_distributions(samples: list[dict[str, str]]) -> None:
         )
 
 
+def _set_endpoints(config: dict[str, Any], cosmos_task_config: CosmosTaskConfig) -> None:
+    _ENDPOINT_SERVICE_FIELDS: dict[str, tuple[str, str | None]] = {
+        "vlm": ("vlm_service_url", "vlm_model"),
+        "llm": ("llm_service_url", "llm_model"),
+        "image_edit": ("image_edit_service_url", "image_edit_model"),
+    }
+    endpoints = config.get("endpoints")
+    if not isinstance(endpoints, list):
+        return
+
+    for endpoint in endpoints:
+        if not isinstance(endpoint, dict):
+            continue
+        endpoint_id = endpoint.get("id")
+        service_fields = _ENDPOINT_SERVICE_FIELDS.get(endpoint_id)
+        if service_fields is None:
+            continue
+        url_field, model_field = service_fields
+        endpoint["url"] = getattr(cosmos_task_config, url_field)
+        if model_field is not None:
+            endpoint["model"] = getattr(cosmos_task_config, model_field)
+
+
 def _build_image_edit_config(
     base_config: dict[str, Any],
     sampled_variables: dict[str, str],
@@ -130,20 +154,7 @@ def _build_image_edit_config(
             },
         }
     ]
-    config["endpoints"] = {
-        "vlm": {
-            "url": cosmos_task_config.vlm_service_url,
-            "model": cosmos_task_config.vlm_model,
-        },
-        "llm": {
-            "url": cosmos_task_config.llm_service_url,
-            "model": cosmos_task_config.llm_model,
-        },
-        "image_edit": {
-            "url": cosmos_task_config.image_edit_service_url,
-            "model": cosmos_task_config.image_edit_model,
-        },
-    }
+    _set_endpoints(config, cosmos_task_config)
 
     llm_cfg = (config.get("captioning") or {}).get("llm")
     if isinstance(llm_cfg, dict):
@@ -151,9 +162,6 @@ def _build_image_edit_config(
         llm_cfg["verification_values"] = {
             key: [value] for key, value in sampled_base_variables.items()
         }
-
-    config.setdefault("pipeline", {})
-    config["pipeline"]["retry"] = 0
     return config
 
 
@@ -180,9 +188,17 @@ def generate_image_attribute_augmentation_image_edit_configs(
         )
 
     prepared = require_prepared_input_from_xcom(context["ti"])
-    base_config = _load_yaml_file(
-        str(IMAGE_ATTRIBUTE_AUGMENTATION_VERIFICATION_TEMPLATE_PATH), "Image Attribute Augmentation image-edit base configuration file"
-    )
+    if cosmos_task_config.base_config_path:
+        base_config = load_cosmos_base_config(
+            base_config_path=cosmos_task_config.base_config_path,
+            default_path=IMAGE_ATTRIBUTE_AUGMENTATION_VERIFICATION_TEMPLATE_PATH,
+            description="Image Attribute Augmentation image-edit base configuration file",
+        )
+    else:
+        base_config = _load_yaml_file(
+            str(IMAGE_ATTRIBUTE_AUGMENTATION_VERIFICATION_TEMPLATE_PATH),
+            "Image Attribute Augmentation image-edit base configuration file",
+        )
     direct_config, lookup_config = cosmos_task_config.variable_distribution.split_variables()
     conditional_variables = cosmos_task_config.variable_distribution.conditional_variables
 

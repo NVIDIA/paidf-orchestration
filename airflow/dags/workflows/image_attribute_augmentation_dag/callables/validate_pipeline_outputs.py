@@ -6,6 +6,7 @@
 from __future__ import annotations
 
 import ast
+import logging
 from typing import Any
 
 from airflow.exceptions import AirflowFailException
@@ -16,15 +17,23 @@ from dags.shared.utils.video_input_utils import (
     get_relative_storage_path,
     normalize_directory_path,
 )
-from dags.workflows.image_attribute_augmentation_dag.models import ImageAttributeAugmentationDagPayloadConfig
-from dags.workflows.image_attribute_augmentation_dag.tasks.post_processing import (
+from dags.workflows.image_attribute_augmentation_dag.callables.cosmos_output_validation import (
+    _attribute_verification_passed,
+    _read_output_metadata,
+)
+from dags.workflows.image_attribute_augmentation_dag.models import (
+    ImageAttributeAugmentationDagPayloadConfig,
+)
+from dags.workflows.image_attribute_augmentation_dag.tasks.augmented_dataset_generation import (
     DEFAULT_OUTPUT_JSON,
     get_augmented_dataset_dir,
     get_dataset_scene_dir,
+    get_scene_augmented_data_path,
 )
 
-REQUIRED_COSMOS_FILES = ("output.jpg", "output_metadata.json")
+REQUIRED_COSMOS_FILES = ("output.jpg",)
 DATASET_SCENE_OUTPUT_DIRS = ("raw", "contextual", "task", "sidecars")
+logger = logging.getLogger(__name__)
 
 
 class PipelineOutputValidationError(Exception):
@@ -138,13 +147,30 @@ def verify_cosmos_run_files(
     person_key: str,
     aug_idx: int,
 ) -> list[str]:
-    """Return missing required Image Attribute Augmentation image-edit artifact paths for one run directory."""
+    """Return missing/failed required Image Attribute Augmentation image-edit artifact paths for one run directory.
+
+    An entry is treated as failed when any required file is absent, or when the
+    optional output_metadata.json sidecar exists and either records
+    attribute_verification.passed == False or cannot be read. Runs that omit the
+    sidecar entirely are preserved, matching how the dataset generation step
+    treats it as optional.
+    """
     run_dir = str(URL(output_directory.rstrip("/")) / run_id / "cosmos" / person_key / str(aug_idx))
     missing = []
+    output_video = None
     for fname in REQUIRED_COSMOS_FILES:
         file_path = f"{run_dir.rstrip('/')}/{fname}"
         if not is_file(file_path):
             missing.append(file_path)
+        elif fname == "output.jpg":
+            output_video = file_path
+    if not missing and output_video is not None:
+        output_metadata = _read_output_metadata(output_video)
+        if not _attribute_verification_passed(output_metadata):
+            missing.append(
+                f"{run_dir.rstrip('/')}/output_metadata.json "
+                "(attribute_verification failed or metadata unreadable)"
+            )
     return missing
 
 
@@ -256,6 +282,10 @@ def verify_dataset_scene(entry: dict[str, Any], index: int) -> list[str]:
     if not is_file(config_path):
         errors.append(config_path)
 
+    cosmos_augmented_data_path = get_scene_augmented_data_path(scene_path)
+    if not is_file(cosmos_augmented_data_path):
+        errors.append(cosmos_augmented_data_path)
+
     has_daft_outputs = False
     for dirname in DATASET_SCENE_OUTPUT_DIRS:
         scene_subdir = paths.get(dirname) or f"{scene_path.rstrip('/')}/{dirname}"
@@ -307,20 +337,44 @@ def verify_augmented_dataset(
 
 
 def validate_pipeline_outputs(payload: dict[str, Any], run_id: str) -> None:
-    """Validate end-of-pipeline storage artifacts for a Image Attribute Augmentation run."""
+    """Validate end-of-pipeline storage artifacts for an Image Attribute Augmentation run.
+
+    Image Attribute Augmentation runs in best-effort mode for augmentation outputs: failed Cosmos
+    augmentation indices are excluded from downstream completeness checks.
+    """
     output_directory = (payload.get("output_directory") or "").strip()
     if not output_directory:
         raise PipelineOutputValidationError(["Payload has no output_directory"])
 
-    cosmos_cfg = payload.get("cosmos") or {}
-    num_augmentation = max(1, int(cosmos_cfg.get("num_augmentation", 1)))
     max_imgs = payload.get("max_imgs")
 
     run_entries = discover_cosmos_run_entries(output_directory, run_id)
     if not run_entries:
         raise PipelineOutputValidationError(["No cosmos output directories found for any person"])
 
-    grouped_runs = group_cosmos_run_entries(run_entries)
+    successful_run_entries: list[tuple[str, int]] = []
+    failed_run_entries: list[tuple[str, int]] = []
+    for person_key, aug_idx in run_entries:
+        missing_required = verify_cosmos_run_files(output_directory, run_id, person_key, aug_idx)
+        if missing_required:
+            failed_run_entries.append((person_key, aug_idx))
+            continue
+        successful_run_entries.append((person_key, aug_idx))
+
+    if failed_run_entries:
+        logger.warning(
+            "Skipping %d failed Cosmos augmentation output(s) during Image Attribute Augmentation final validation. "
+            "Failed entries: %s",
+            len(failed_run_entries),
+            failed_run_entries,
+        )
+
+    if not successful_run_entries:
+        raise PipelineOutputValidationError(
+            ["No successful cosmos outputs found for any person/augmentation index"]
+        )
+
+    grouped_runs = group_cosmos_run_entries(successful_run_entries)
     processed_person_keys = sorted(grouped_runs)
 
     if max_imgs is not None and max_imgs > 0 and len(processed_person_keys) > max_imgs:
@@ -333,23 +387,15 @@ def validate_pipeline_outputs(payload: dict[str, Any], run_id: str) -> None:
         )
 
     errors: list[str] = []
-    expected_aug_indices = set(range(num_augmentation))
-    for person_key, aug_indices in grouped_runs.items():
-        if aug_indices != expected_aug_indices:
-            errors.append(
-                f"cosmos/{person_key}: expected augmentation indices "
-                f"{sorted(expected_aug_indices)}, found {sorted(aug_indices)}"
-            )
 
     errors.extend(verify_preprocessing_artifacts(output_directory, run_id, processed_person_keys))
-    for person_key, aug_idx in run_entries:
-        errors.extend(verify_cosmos_run_files(output_directory, run_id, person_key, aug_idx))
-    errors.extend(verify_augmented_dataset(output_directory, run_id, run_entries))
+    errors.extend(verify_augmented_dataset(output_directory, run_id, successful_run_entries))
 
     auto_labeling_entries = discover_auto_labeling_run_entries(output_directory, run_id)
-    if set(auto_labeling_entries) != set(run_entries):
+    if set(auto_labeling_entries) != set(successful_run_entries):
         errors.append(
-            f"Expected auto_labeling run directories {run_entries}, found {auto_labeling_entries}"
+            "Expected auto_labeling run directories "
+            f"{successful_run_entries}, found {auto_labeling_entries}"
         )
     elif not _prefix_has_objects(f"{_run_base_url(output_directory, run_id)}/auto_labeling"):
         errors.append(f"{_run_base_url(output_directory, run_id)}/auto_labeling/ (no objects)")
@@ -369,7 +415,9 @@ def validate_image_attribute_augmentation_pipeline_outputs(
         if isinstance(payload, dict):
             config = ImageAttributeAugmentationDagPayloadConfig.model_validate(payload)
         else:
-            config = ImageAttributeAugmentationDagPayloadConfig.model_validate(ast.literal_eval(payload or "{}"))
+            config = ImageAttributeAugmentationDagPayloadConfig.model_validate(
+                ast.literal_eval(payload or "{}")
+            )
         validate_pipeline_outputs(config.model_dump(), run_id)
     except PipelineOutputValidationError as e:
         raise AirflowFailException(

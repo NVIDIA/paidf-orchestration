@@ -64,13 +64,20 @@ def build_inference_pod_volumes(
     *,
     gpu: bool = False,
     model_cache_pvc: Optional[str] = None,
+    shm_size: Optional[str] = None,
 ) -> Tuple[list[client.V1Volume], list[client.V1VolumeMount]]:
-    """Build pod volumes/mounts for GPU inference services."""
+    """Build pod volumes/mounts for GPU inference services.
+
+    ``shm_size`` overrides the default ``/dev/shm`` size limit. Some NIMs stage
+    large intermediate artifacts there (e.g. Cosmos Transfer writes per-request
+    temp dirs under ``/dev/shm`` and needs tens of GiB) and fail with
+    ``[Errno 28] No space left on device`` at the default.
+    """
     volumes: list[client.V1Volume] = []
     mounts: list[client.V1VolumeMount] = []
 
     if gpu:
-        volumes.append(build_dshm_volume())
+        volumes.append(build_dshm_volume(shm_size or DSHM_SIZE_LIMIT))
         mounts.append(build_dshm_volume_mount())
 
     if model_cache_pvc:

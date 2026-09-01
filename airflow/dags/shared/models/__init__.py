@@ -8,12 +8,18 @@ from dags.shared.models.manifest import (
     TaskComponent,
 )
 from dags.shared.models.payload import (
-    AutoLabelingTaskConfig,
+    CaptioningTaskConfig,
     ConditionalVariableConfig,
     CosmosTaskConfig,
+    DetectionAndTrackingTaskConfig,
+    ImageAttributeAugmentationTaskConfig,
+    ReasoningTaskConfig,
     ServiceLifecycleServiceConfig,
     ServiceLifecycleTaskConfig,
+    SuperResolutionTaskConfig,
+    TrainingExportTaskConfig,
     VariableDistribution,
+    VisualQATaskConfig,
 )
 from dags.shared.models.xcom import (
     CosmosOutputResult,
@@ -29,12 +35,18 @@ __all__ = [
     "ManifestConfig",
     "TaskComponent",
     # Payload Models
+    "CaptioningTaskConfig",
+    "ConditionalVariableConfig",
     "CosmosTaskConfig",
-    "AutoLabelingTaskConfig",
+    "DetectionAndTrackingTaskConfig",
+    "ImageAttributeAugmentationTaskConfig",
+    "ReasoningTaskConfig",
     "ServiceLifecycleTaskConfig",
     "ServiceLifecycleServiceConfig",
-    "ConditionalVariableConfig",
+    "SuperResolutionTaskConfig",
+    "TrainingExportTaskConfig",
     "VariableDistribution",
+    "VisualQATaskConfig",
     # XCom Models
     "CosmosOutputResult",
     "EndpointXComValue",

@@ -8,10 +8,10 @@ from __future__ import annotations
 import json
 import logging
 from pathlib import Path
+from typing import TYPE_CHECKING
 
 from airflow.exceptions import AirflowFailException
 from multistorageclient.types import PatternType
-from PIL import Image, UnidentifiedImageError
 
 from dags.shared.utils.msc_utils import download_file, list_directory, upload_file
 from dags.shared.utils.video_input_utils import (
@@ -19,6 +19,11 @@ from dags.shared.utils.video_input_utils import (
     join_storage_base_path_filename,
     normalize_directory_path,
 )
+
+# Pillow is imported inside callables, never at module scope, to avoid the DAG processor
+# racing the python-deps S3 sync mid-update (SQA: Core 12.3.0 vs Pillow 12.2.0).
+if TYPE_CHECKING:
+    from PIL import Image
 
 logger = logging.getLogger(__name__)
 
@@ -28,6 +33,8 @@ IMAGE_PATTERNS = [(PatternType.INCLUDE, f"*{ext}") for ext in IMAGE_EXTENSIONS]
 
 def resize_to_height(image: Image.Image, target_height: int = 512) -> Image.Image:
     """Resize image to target height while preserving aspect ratio."""
+    from PIL import Image
+
     width, height = image.size
     aspect_ratio = width / height
     new_width = int(target_height * aspect_ratio)
@@ -43,8 +50,12 @@ def get_image_files(directory: Path) -> list[Path]:
     ]
 
 
-def combine_id_images(image_paths: list[Path], output_path: Path, metadata_path: Path) -> None:
+def combine_id_images(
+    image_paths: list[Path], output_path: Path, metadata_path: Path
+) -> None:
     """Combine one-or-more images into a single horizontal strip plus metadata."""
+    from PIL import Image
+
     if not image_paths:
         raise ValueError("Need at least one image to combine")
 
@@ -55,8 +66,14 @@ def combine_id_images(image_paths: list[Path], output_path: Path, metadata_path:
 
     for img_path in image_paths:
         with Image.open(img_path) as opened_img:
-            original_resolutions.append({"width": opened_img.width, "height": opened_img.height})
-            img = opened_img.convert("RGB") if opened_img.mode != "RGB" else opened_img.copy()
+            original_resolutions.append(
+                {"width": opened_img.width, "height": opened_img.height}
+            )
+            img = (
+                opened_img.convert("RGB")
+                if opened_img.mode != "RGB"
+                else opened_img.copy()
+            )
         resized = resize_to_height(img, target_height=512)
         resized_images.append(resized)
         widths.append(resized.width)
@@ -98,7 +115,7 @@ def _relative_remote_path(remote_path: str, input_path: str) -> str:
 
 
 def stage_input_images(input_path: str, staging_dir: str) -> str:
-    """Download Image Attribute Augmentation image objects from storage into a local directory tree."""
+    """Download Image Attribute Augmentation image objects into a local directory tree."""
     input_dir = normalize_directory_path(input_path)
     staging_root = Path(staging_dir)
     staging_root.mkdir(parents=True, exist_ok=True)
@@ -116,9 +133,15 @@ def stage_input_images(input_path: str, staging_dir: str) -> str:
         downloaded += 1
 
     if downloaded == 0:
-        raise AirflowFailException(f"No Image Attribute Augmentation image files found under {input_dir}")
+        raise AirflowFailException(
+            f"No Image Attribute Augmentation image files found under {input_dir}"
+        )
 
-    logger.info("Downloaded %d Image Attribute Augmentation image(s) from %s", downloaded, input_dir)
+    logger.info(
+        "Downloaded %d Image Attribute Augmentation image(s) from %s",
+        downloaded,
+        input_dir,
+    )
     return str(staging_root)
 
 
@@ -127,7 +150,9 @@ def upload_combined_outputs(combined_dir: Path, output_directory: str) -> int:
     output_dir = normalize_directory_path(output_directory)
     uploaded = 0
     for path in sorted(combined_dir.iterdir()):
-        if not path.is_file() or path.suffix.lower() not in IMAGE_EXTENSIONS | {".json"}:
+        if not path.is_file() or path.suffix.lower() not in IMAGE_EXTENSIONS | {
+            ".json"
+        }:
             continue
         remote_path = join_storage_base_path_filename(
             join_storage_base_path_filename(output_dir, path.stem),
@@ -137,9 +162,15 @@ def upload_combined_outputs(combined_dir: Path, output_directory: str) -> int:
         uploaded += 1
 
     if uploaded == 0:
-        raise AirflowFailException(f"No combined Image Attribute Augmentation outputs found in {combined_dir}")
+        raise AirflowFailException(
+            f"No combined Image Attribute Augmentation outputs found in {combined_dir}"
+        )
 
-    logger.info("Uploaded %d Image Attribute Augmentation preprocessing artifact(s) to %s", uploaded, output_dir)
+    logger.info(
+        "Uploaded %d Image Attribute Augmentation preprocessing artifact(s) to %s",
+        uploaded,
+        output_dir,
+    )
     return uploaded
 
 
@@ -148,11 +179,15 @@ def combine_panes(
     input_path: str,
     output_directory: str | None = None,
 ) -> None:
-    """Combine Image Attribute Augmentation ID folders into multi-pane images and metadata files."""
+    """Combine Image Attribute Augmentation ID folders into multi-pane images and metadata."""
+    from PIL import UnidentifiedImageError
+
     run_base_path = Path(run_base)
     staging_dir = run_base_path / "staged_imgs"
     output_root = run_base_path / "combined_imgs"
-    input_root = Path(stage_input_images(input_path=input_path, staging_dir=str(staging_dir)))
+    input_root = Path(
+        stage_input_images(input_path=input_path, staging_dir=str(staging_dir))
+    )
     if not input_root.exists():
         raise AirflowFailException(f"Input image root does not exist: {input_root}")
 
@@ -173,7 +208,9 @@ def combine_panes(
             combine_id_images(image_files, combined_path, metadata_path)
             success += 1
         except (FileNotFoundError, UnidentifiedImageError, ValueError, OSError) as e:
-            logger.warning("Skipping %s due to image processing issue: %s", subdir.name, e)
+            logger.warning(
+                "Skipping %s due to image processing issue: %s", subdir.name, e
+            )
             skipped += 1
         except Exception as e:
             logger.exception("Unexpected error processing %s: %s", subdir.name, e)
@@ -181,6 +218,8 @@ def combine_panes(
 
     logger.info("combine_panes done: success=%d skipped=%d", success, skipped)
     if success == 0:
-        raise AirflowFailException(f"No Image Attribute Augmentation IDs were successfully combined under {input_root}")
+        raise AirflowFailException(
+            f"No Image Attribute Augmentation IDs were successfully combined under {input_root}"
+        )
     if output_directory:
         upload_combined_outputs(output_root, output_directory)

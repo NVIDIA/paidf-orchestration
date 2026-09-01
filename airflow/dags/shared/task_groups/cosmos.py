@@ -3,16 +3,64 @@
 
 """Task Group for Cosmos Augmentation."""
 
+import datetime
 import logging
 from collections.abc import Callable
+from pathlib import Path
 from typing import Any
 
+import multistorageclient as msc
+import yaml
 from airflow.exceptions import AirflowFailException
 from airflow.models.xcom_arg import XComArg
 from airflow.providers.standard.operators.empty import EmptyOperator
 from airflow.providers.standard.operators.python import BranchPythonOperator, PythonOperator
 from airflow.sdk import TaskGroup
 from airflow.task.trigger_rule import TriggerRule
+
+from dags.shared.utils.msc_utils import ensure_msc_configured
+
+
+def _parse_yaml_mapping(config_body: Any, path: str, description: str) -> dict[str, Any]:
+    try:
+        loaded = yaml.safe_load(config_body)
+    except yaml.YAMLError as exc:
+        raise AirflowFailException(f"Failed to parse {description} at {path}: {exc}") from exc
+    if not isinstance(loaded, dict):
+        raise AirflowFailException(f"{description} at {path} must contain a YAML mapping")
+    return loaded
+
+
+@ensure_msc_configured
+def _load_msc_yaml_mapping(path: str, description: str) -> dict[str, Any]:
+    try:
+        with msc.open(path, "r") as config_file:
+            return _parse_yaml_mapping(config_file, path, description)
+    except AirflowFailException:
+        raise
+    except Exception as exc:
+        raise AirflowFailException(f"Failed to read {description} at {path}: {exc}") from exc
+
+
+def load_cosmos_base_config(
+    *,
+    base_config_path: str | None,
+    default_path: str | Path,
+    description: str,
+) -> dict[str, Any]:
+    """Load an explicit MSC template, or fall back to the DAG-local template."""
+    normalized_base_config_path = base_config_path.strip() if base_config_path else None
+    if normalized_base_config_path:
+        return _load_msc_yaml_mapping(normalized_base_config_path, description)
+
+    local_path = str(default_path)
+    try:
+        with open(local_path, encoding="utf-8") as config_file:
+            return _parse_yaml_mapping(config_file, local_path, description)
+    except AirflowFailException:
+        raise
+    except Exception as exc:
+        raise AirflowFailException(f"Failed to read {description} at {local_path}: {exc}") from exc
 
 
 class CosmosTaskGroup:
@@ -171,6 +219,7 @@ class CosmosTaskGroup:
             task_id="augmentation_external",
             pool=self.external_augmentation_pool,
             name=task_name,
+            retry_delay=datetime.timedelta(seconds=15),
         ).expand(container_args=expand_args)
 
         augmentation_internal = self.builder.partial_task(
@@ -178,6 +227,7 @@ class CosmosTaskGroup:
             task_id="augmentation_internal",
             pool=self.internal_augmentation_pool,
             name=task_name,
+            retry_delay=datetime.timedelta(seconds=15),
         ).expand(container_args=expand_args)
 
         return augmentation_external, augmentation_internal
@@ -196,7 +246,7 @@ class CosmosTaskGroup:
             )
             join_after_augmentation = EmptyOperator(
                 task_id="join_after_augmentation",
-                trigger_rule=TriggerRule.NONE_FAILED_MIN_ONE_SUCCESS,
+                trigger_rule=TriggerRule.ALL_DONE,
             )
             validate_outputs = self.get_validate_cosmos_outputs_task()
 

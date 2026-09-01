@@ -1,0 +1,506 @@
+/*
+ * SPDX-FileCopyrightText: Copyright (c) 2026 NVIDIA CORPORATION & AFFILIATES. All rights reserved.
+ * SPDX-License-Identifier: Apache-2.0
+ *
+ * Styles for the self-contained orchestration statistics dashboard. Inlined into
+ * a single HTML file at render time so the report opens without a server.
+ */
+
+:root {
+  --ink: #172019;
+  --muted: #647068;
+  --line: #dfe7e1;
+  --panel: #fff;
+  --canvas: #f3f7f4;
+  --green: #76b900;
+  --blue: #1479b8;
+  --amber: #d08a0b;
+  --purple: #7656b5;
+  --teal: #0e9f83;
+  --slate: #64748b;
+  --shadow: 0 12px 36px rgba(24, 48, 31, 0.08);
+}
+
+* {
+  box-sizing: border-box;
+}
+
+body {
+  margin: 0;
+  color: var(--ink);
+  background:
+    radial-gradient(circle at 85% 0, rgba(118, 185, 0, 0.13), transparent 30rem),
+    var(--canvas);
+  font: 14px/1.45 Inter, ui-sans-serif, system-ui, -apple-system, "Segoe UI", sans-serif;
+}
+
+main {
+  width: min(1440px, calc(100% - 40px));
+  margin: 32px auto 64px;
+}
+
+/* Header */
+
+.hero {
+  position: relative;
+  overflow: hidden;
+  padding: 32px 34px;
+  color: #fff;
+  background: linear-gradient(125deg, #152a1b, #20462a 64%, #42680d);
+  border-radius: 22px;
+  box-shadow: var(--shadow);
+}
+
+.hero:after {
+  content: "";
+  position: absolute;
+  width: 330px;
+  height: 330px;
+  right: -90px;
+  top: -180px;
+  border: 54px solid rgba(118, 185, 0, 0.25);
+  border-radius: 50%;
+}
+
+.eyebrow {
+  color: #bde477;
+  font-size: 12px;
+  font-weight: 800;
+  letter-spacing: 0.12em;
+  text-transform: uppercase;
+}
+
+h1 {
+  margin: 7px 0 10px;
+  max-width: 850px;
+  font-size: clamp(26px, 4vw, 44px);
+  line-height: 1.05;
+  letter-spacing: -0.035em;
+}
+
+.hero-meta {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 10px 20px;
+  color: #d7e5da;
+}
+
+.hero-meta code {
+  color: inherit;
+  font: inherit;
+  overflow-wrap: anywhere;
+}
+
+.badge {
+  display: inline-flex;
+  align-items: center;
+  gap: 7px;
+  margin-top: 18px;
+  padding: 7px 11px;
+  color: #daf4b1;
+  background: rgba(118, 185, 0, 0.16);
+  border: 1px solid rgba(190, 235, 118, 0.35);
+  border-radius: 999px;
+  font-weight: 750;
+}
+
+.dot {
+  width: 8px;
+  height: 8px;
+  background: #91d322;
+  border-radius: 50%;
+  box-shadow: 0 0 0 4px rgba(145, 211, 34, 0.14);
+}
+
+/* Summary cards */
+
+.section-title {
+  margin: 28px 0 12px;
+  font-size: 18px;
+}
+
+.cards {
+  display: grid;
+  grid-template-columns: repeat(6, minmax(0, 1fr));
+  gap: 12px;
+}
+
+.card,
+.panel {
+  background: var(--panel);
+  border: 1px solid var(--line);
+  border-radius: 16px;
+  box-shadow: var(--shadow);
+}
+
+.card {
+  padding: 17px 18px 15px;
+  min-height: 116px;
+}
+
+.label {
+  color: var(--muted);
+  font-size: 11px;
+  font-weight: 750;
+  letter-spacing: 0.045em;
+  text-transform: uppercase;
+}
+
+.value {
+  margin-top: 8px;
+  font-size: 25px;
+  font-weight: 800;
+  line-height: 1.05;
+  letter-spacing: -0.035em;
+}
+
+.detail {
+  margin-top: 9px;
+  color: var(--muted);
+  font-size: 12px;
+}
+
+.callout {
+  display: flex;
+  gap: 12px;
+  margin-top: 12px;
+  padding: 13px 15px;
+  background: #fff1d4;
+  border: 1px solid #f2d59a;
+  border-radius: 12px;
+  color: #68470d;
+}
+
+.callout strong {
+  white-space: nowrap;
+}
+
+/* Panels */
+
+.panel {
+  margin-top: 14px;
+  padding: 20px;
+}
+
+.panel-head {
+  display: flex;
+  justify-content: space-between;
+  gap: 12px;
+  align-items: flex-start;
+  margin-bottom: 16px;
+}
+
+.panel h2 {
+  margin: 0;
+  font-size: 17px;
+}
+
+.sub {
+  margin-top: 3px;
+  color: var(--muted);
+  font-size: 12px;
+}
+
+.legend {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 9px 14px;
+  color: var(--muted);
+  font-size: 11px;
+}
+
+.legend span {
+  display: inline-flex;
+  align-items: center;
+  gap: 5px;
+}
+
+.swatch {
+  width: 9px;
+  height: 9px;
+  border-radius: 3px;
+}
+
+/* Execution timeline */
+
+.timeline-wrap,
+.table-wrap {
+  overflow-x: auto;
+}
+
+.timeline {
+  min-width: 880px;
+}
+
+.axis {
+  position: relative;
+  height: 28px;
+  margin-left: 300px;
+  border-bottom: 1px solid var(--line);
+}
+
+.tick {
+  position: absolute;
+  bottom: 5px;
+  color: var(--muted);
+  font-size: 10px;
+  transform: translateX(-50%);
+}
+
+.timeline-row {
+  display: grid;
+  grid-template-columns: 290px 1fr;
+  gap: 10px;
+  align-items: center;
+  min-height: 31px;
+  border-bottom: 1px solid #edf1ee;
+}
+
+.task-label {
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+  color: #334039;
+  font-size: 12px;
+}
+
+.track {
+  position: relative;
+  height: 13px;
+  background-image: linear-gradient(to right, transparent calc(20% - 1px), #edf1ee 20%);
+  background-size: 20% 100%;
+}
+
+.bar {
+  position: absolute;
+  top: 1px;
+  height: 11px;
+  min-width: 3px;
+  border-radius: 4px;
+  opacity: 0.9;
+}
+
+/* Task category colours, resolved server-side into a per-task class */
+
+.augmentation {
+  background: var(--green);
+}
+
+.processing {
+  background: var(--blue);
+}
+
+.inference {
+  background: var(--purple);
+}
+
+.wait {
+  background: var(--amber);
+}
+
+.validation {
+  background: var(--teal);
+}
+
+.orchestration {
+  background: var(--slate);
+}
+
+/* Queue time vs runtime, and operational signals */
+
+.two-col {
+  display: grid;
+  grid-template-columns: minmax(0, 1.25fr) minmax(330px, 0.75fr);
+  gap: 14px;
+}
+
+.metric-list,
+.insights {
+  display: grid;
+  gap: 9px;
+}
+
+.metric-row {
+  display: grid;
+  grid-template-columns: minmax(180px, 1.2fr) minmax(210px, 2fr) 108px;
+  gap: 10px;
+  align-items: center;
+}
+
+.metric-label {
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+  font-size: 12px;
+}
+
+.dual {
+  display: flex;
+  align-items: center;
+  gap: 2px;
+  height: 13px;
+}
+
+.queue,
+.run {
+  height: 11px;
+  min-width: 2px;
+  border-radius: 3px;
+}
+
+.queue {
+  background: #f5b544;
+}
+
+.run {
+  background: var(--green);
+}
+
+.metric-value {
+  color: var(--muted);
+  font-size: 11px;
+  text-align: right;
+  white-space: nowrap;
+}
+
+.insight {
+  padding: 14px;
+  background: #f7faf8;
+  border: 1px solid var(--line);
+  border-radius: 12px;
+}
+
+.insight strong {
+  display: block;
+  font-size: 18px;
+}
+
+.insight span {
+  color: var(--muted);
+  font-size: 12px;
+}
+
+/* Task detail table */
+
+table {
+  width: 100%;
+  min-width: 900px;
+  border-collapse: collapse;
+}
+
+th,
+td {
+  padding: 10px 9px;
+  border-bottom: 1px solid #e8ede9;
+  text-align: left;
+  font-size: 12px;
+}
+
+th {
+  color: var(--muted);
+  background: #f8faf9;
+  font-size: 10px;
+  letter-spacing: 0.055em;
+  text-transform: uppercase;
+}
+
+td.num,
+th.num {
+  text-align: right;
+  font-variant-numeric: tabular-nums;
+}
+
+.state {
+  display: inline-block;
+  padding: 3px 7px;
+  border-radius: 999px;
+  font-size: 10px;
+  font-weight: 750;
+}
+
+.success {
+  color: #346500;
+  background: #e9f5d9;
+}
+
+.skipped {
+  color: #5d6874;
+  background: #edf0f3;
+}
+
+.running {
+  color: #76530a;
+  background: #fff1d4;
+}
+
+.unknown {
+  color: #666;
+  background: #eee;
+}
+
+footer {
+  margin-top: 18px;
+  color: var(--muted);
+  font-size: 11px;
+  text-align: center;
+}
+
+@media (max-width: 1150px) {
+  .cards {
+    grid-template-columns: repeat(3, 1fr);
+  }
+
+  .two-col {
+    grid-template-columns: 1fr;
+  }
+}
+
+@media (max-width: 650px) {
+  main {
+    width: min(100% - 20px, 1440px);
+    margin-top: 10px;
+  }
+
+  .hero {
+    padding: 24px 20px;
+    border-radius: 16px;
+  }
+
+  .cards {
+    grid-template-columns: repeat(2, 1fr);
+  }
+
+  .value {
+    font-size: 21px;
+  }
+
+  .panel {
+    padding: 15px;
+  }
+
+  .callout {
+    display: block;
+  }
+}
+
+@media print {
+  body {
+    background: #fff;
+  }
+
+  main {
+    width: 100%;
+    margin: 0;
+  }
+
+  .hero,
+  .card,
+  .panel {
+    box-shadow: none;
+  }
+
+  .panel,
+  .card {
+    break-inside: avoid;
+  }
+}

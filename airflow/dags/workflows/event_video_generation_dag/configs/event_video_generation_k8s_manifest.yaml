@@ -1,0 +1,217 @@
+# K8s Manifest for Remote GPU Cluster
+#
+# This manifest targets a remote Kubernetes cluster with H100 or L40S GPU(s).
+# It uses kubernetes_conn_id to connect to the remote cluster instead of
+# the local in-cluster config.
+
+version: 0.0.1
+
+deployment:
+  dag_timeout: 172800 # 2 days
+
+  profiles:
+    k8s_cpu_task:
+      operator: K8sTaskOperator
+      pool: default_pool
+      pool_slots: 1
+      configuration:
+        namespace: sdg-workflow
+        kubernetes_conn_id: kubernetes_remote
+        in_cluster: false
+        startup_timeout_seconds: 900
+        image_pull_secrets:
+          - ngc-docker-registry-secret
+
+    k8s_gpu_endpoint:
+      operator: K8sServiceOperator
+      cleanup_operator: K8sCleanupOperator
+      pool: k8s_gpu_1
+      pool_slots: 1
+      configuration:
+        namespace: sdg-workflow
+        kubernetes_conn_id: kubernetes_remote
+        in_cluster: false
+        gpu: H100/L40S
+        model_cache_pvc: ngc-model-cache
+        image_pull_secrets:
+          - ngc-docker-registry-secret
+        inference_port: 8000
+        health_uri: /health
+        deployment_ready_timeout_seconds: 5400
+        poll_interval_seconds: 10
+
+    k8s_gpu_endpoint_2:
+      operator: K8sServiceOperator
+      cleanup_operator: K8sCleanupOperator
+      pool: k8s_gpu_1
+      pool_slots: 2
+      configuration:
+        namespace: sdg-workflow
+        kubernetes_conn_id: kubernetes_remote
+        in_cluster: false
+        gpu: H100
+        gpu_count: 2
+        host_ipc: true
+        model_cache_pvc: ngc-model-cache
+        image_pull_secrets:
+          - ngc-docker-registry-secret
+        inference_port: 8000
+        health_uri: /health
+        deployment_ready_timeout_seconds: 5400
+        poll_interval_seconds: 10
+
+    k8s_gpu_task:
+      operator: K8sTaskOperator
+      pool: k8s_gpu_1
+      pool_slots: 1
+      configuration:
+        namespace: sdg-workflow
+        kubernetes_conn_id: kubernetes_remote
+        in_cluster: false
+        startup_timeout_seconds: 900
+        gpu: H100/L40S
+        image_pull_secrets:
+          - ngc-docker-registry-secret
+
+    augmentation_task:
+      operator: K8sTaskOperator
+      pool: external_image2video_service_pool
+      pool_slots: 1
+      configuration:
+        namespace: sdg-workflow
+        kubernetes_conn_id: kubernetes_remote
+        in_cluster: false
+        startup_timeout_seconds: 900
+        gpu: H100/L40S
+        image_pull_secrets:
+          - ngc-docker-registry-secret
+
+  components:
+    endpoints:
+      # Qwen3-VL-30B-A3B-Instruct-FP8 — shared VLM
+      vlm_service:
+        container_image: nvcr.io/nvidia/vllm:25.12-py3
+        deployment_profile: k8s_gpu_endpoint
+        environment:
+          HF_HOME: "/config/models"
+        container_args: >-
+          python3 -m vllm.entrypoints.openai.api_server
+          --model Qwen/Qwen3-VL-30B-A3B-Instruct-FP8
+          --served-model-name Qwen/Qwen3-VL-30B-A3B-Instruct-FP8
+          --tensor-parallel-size 1
+          --max-model-len 64000
+          --trust-remote-code
+          --gpu-memory-utilization 0.6
+          --mm-encoder-tp-mode data
+          --limit-mm-per-prompt '{"image":1024,"video":1}'
+          --host 0.0.0.0 --port 8000
+        configuration:
+          inference_port: 8000
+          health_uri: /health
+        secrets:
+          HF_TOKEN: "{{ var.value.hf_token }}"
+
+      # Qwen2.5-14B-Instruct — LLM
+      llm_service:
+        container_image: nvcr.io/nvidia/vllm:25.12-py3
+        deployment_profile: k8s_gpu_endpoint
+        environment:
+          HF_HOME: "/config/models"
+        container_args: >-
+          python3 -m vllm.entrypoints.openai.api_server
+          --model Qwen/Qwen2.5-14B-Instruct
+          --served-model-name Qwen/Qwen2.5-14B-Instruct
+          --tensor-parallel-size 1
+          --max-model-len 32768
+          --trust-remote-code
+          --gpu-memory-utilization 0.6
+          --host 0.0.0.0 --port 8000
+        configuration:
+          inference_port: 8000
+          health_uri: /health
+        secrets:
+          HF_TOKEN: "{{ var.value.hf_token }}"
+
+      # nvidia/Cosmos3-Super-Image2Video — image2video
+      image2video_service:
+        container_image: vllm/vllm-omni:cosmos3
+        deployment_profile: k8s_gpu_endpoint_2
+        environment:
+          HF_HOME: "/config/models"
+          NCCL_P2P_DISABLE: "1"
+          VLLM_OMNI_VIDEO_SYNC_TIMEOUT: "1800"
+          VLLM_OMNI_INPUT_WAIT_TIMEOUT_S: "1800"
+        container_args: >-
+          vllm serve nvidia/Cosmos3-Super-Image2Video
+          --omni
+          --host 0.0.0.0
+          --port 8000
+          --cfg-parallel-size 2
+          --use-hsdp
+          --hsdp-shard-size 2
+          --init-timeout 1800
+
+        configuration:
+          inference_port: 8000
+          health_uri: /health
+        secrets:
+          HUGGING_FACE_HUB_TOKEN: "{{ var.value.hf_token }}"
+          HF_TOKEN: "{{ var.value.hf_token }}"
+
+    tasks:
+      detection_and_tracking:
+        container_image: nvcr.io/nvidia/paidf-detection-and-tracking-rfdetr-service:1.1.0
+        deployment_profile: k8s_gpu_task
+        model_cache_pvc: ngc-model-cache
+        environment:
+          MODEL_CACHE_PATH: "/config/models"
+        secrets:
+          MULTISTORAGECLIENT_CONFIGURATION: "{{ var.value.multistorageclient_configuration_secret }}"
+          NVIDIA_API_KEY: "{{ conn.nvcf_default.password }}"
+        configuration:
+          retries: 3
+          startup_timeout_seconds: 14400
+
+      captioning:
+        container_image: nvcr.io/nvidia/paidf-captioning-service:1.1.0
+        deployment_profile: k8s_gpu_task
+        secrets:
+          MULTISTORAGECLIENT_CONFIGURATION: "{{ var.value.multistorageclient_configuration_secret }}"
+          NVIDIA_API_KEY: "{{ conn.nvcf_default.password }}"
+        configuration:
+          retries: 3
+          startup_timeout_seconds: 14400
+
+      visual_qa:
+        container_image: nvcr.io/nvidia/paidf-visual-qa-service:1.1.0
+        deployment_profile: k8s_gpu_task
+        secrets:
+          MULTISTORAGECLIENT_CONFIGURATION: "{{ var.value.multistorageclient_configuration_secret }}"
+          NVIDIA_API_KEY: "{{ conn.nvcf_default.password }}"
+        configuration:
+          retries: 3
+          startup_timeout_seconds: 14400
+
+      event_and_person_attribute_search:
+        container_image: nvcr.io/nvidia/paidf-event-and-person-attribute-search-service:1.1.0
+        deployment_profile: k8s_cpu_task
+        secrets:
+          MULTISTORAGECLIENT_CONFIGURATION: "{{ var.value.multistorageclient_configuration_secret }}"
+          NVIDIA_API_KEY: "{{ conn.nvcf_default.password }}"
+        configuration:
+          retries: 3
+
+      augmentation:
+        container_image: nvcr.io/nvidia/paidf-augmentation:1.1.0
+        deployment_profile: augmentation_task
+        environment:
+          UV_LINK_MODE: copy
+        secrets:
+          MULTISTORAGECLIENT_CONFIGURATION: "{{ var.value.multistorageclient_configuration_secret }}"
+          BUILD_NVIDIA_API_KEY: "{{ conn.nvcf_default.password }}"
+          NVIDIA_API_KEY: "{{ conn.nvcf_default.password }}"
+          VLM_API_KEY: "{{ conn.nvcf_default.password }}"
+          LLM_API_KEY: "{{ conn.nvcf_default.password }}"
+          COSMOS_API_KEY: "{{ conn.nvcf_default.password }}"
+        configuration:
+          retries: 3

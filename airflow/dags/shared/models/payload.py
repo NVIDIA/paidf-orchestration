@@ -22,6 +22,18 @@ from pydantic import (
 DEFAULT_VLM_MODEL = "Qwen/Qwen3-VL-30B-A3B-Instruct-FP8"
 DEFAULT_LLM_MODEL = "Qwen/Qwen2.5-14B-Instruct"
 DEFAULT_IMAGE_EDIT_MODEL = "Qwen/Qwen-Image-Edit-2511"
+DEFAULT_COSMOS_TRANSFER_MODEL = "cosmos-transfer2.5"
+DEFAULT_OPENAI_COMPATIBLE_PROVIDER = "openai-compatible"
+
+# Placeholders, not working endpoints: every run must override them from the payload.
+# They exist so the payload model stays constructible without arguments, which the DAGs
+# rely on to render their Param defaults at parse time.
+DEFAULT_OUTPUT_DIRECTORY = "s3://<your-output-bucket>/<your-workflow>/output"
+DEFAULT_VLM_SERVICE_URL = "https://<your-vlm-endpoint>/v1"
+DEFAULT_LLM_SERVICE_URL = "https://<your-llm-endpoint>/v1"
+DEFAULT_IMAGE_EDIT_SERVICE_URL = "https://<your-image-edit-endpoint>/v1"
+DEFAULT_COSMOS_TRANSFER_SERVICE_URL = "https://<your-cosmos-transfer-endpoint>/v1"
+DEFAULT_VISUAL_QA_QUESTION_BANK_FILE = "s3://<your-bucket>/question_bank.json"
 
 NonEmptyString: TypeAlias = Annotated[str, StringConstraints(min_length=1, strict=True)]
 NonNegativeWeight: TypeAlias = Annotated[StrictFloat, Field(ge=0)]
@@ -66,9 +78,7 @@ class LookupDistribution(RootModel[dict[NonEmptyString, WeightedDistribution]]):
     root: dict[NonEmptyString, WeightedDistribution] = Field(min_length=1)
 
     def as_dict(self) -> dict[str, dict[str, float]]:
-        return {
-            value: distribution.as_dict() for value, distribution in self.root.items()
-        }
+        return {value: distribution.as_dict() for value, distribution in self.root.items()}
 
     @model_serializer(mode="plain")
     def serialize_model(self) -> dict[str, dict[str, float]]:
@@ -136,9 +146,7 @@ class VariableDistribution(BaseModel):
                     f"variable '{parent}'"
                 )
 
-            missing_parent_values = possible_sampled_values[parent] - set(
-                config.distributions
-            )
+            missing_parent_values = possible_sampled_values[parent] - set(config.distributions)
             if missing_parent_values:
                 missing = ", ".join(sorted(missing_parent_values))
                 raise ValueError(
@@ -185,8 +193,7 @@ class VariableDistribution(BaseModel):
     def serialize_model(self) -> dict[str, Any]:
         serialized: dict[str, Any] = {
             "variables": {
-                var_name: config.model_dump()
-                for var_name, config in self.variables.items()
+                var_name: config.model_dump() for var_name, config in self.variables.items()
             }
         }
         if self.conditional_variables:
@@ -197,33 +204,24 @@ class VariableDistribution(BaseModel):
         return serialized
 
 
-class AutoLabelingTaskConfig(BaseModel):
-    """The input schema for auto labeling configuration in the payload."""
+class CaptioningTaskConfig(BaseModel):
+    """The input schema for captioning configuration in the payload."""
 
-    tracker: str = Field(
-        default="bytetrack",
-        description="Tracker algorithm to use (bytetrack, botsort, deepocsort, etc.).",
-    )
-    threshold: float = Field(
-        default=0.3,
-        description="Detection threshold for object detection.",
-        ge=0.0,
-        le=1.0,
-    )
     vlm_service_url: Optional[str] = Field(
-        default=None,
-        description="Direct URL for the VLM service (platform-agnostic). "
-        "Preferred over vlm_service_function_id.",
+        default=DEFAULT_VLM_SERVICE_URL,
+        description="Direct URL for the VLM service when external_services is true.",
     )
-    llm_service_url: Optional[str] = Field(
-        default=None,
-        description="Direct URL for the LLM service (platform-agnostic). "
-        "Preferred over llm_service_function_id.",
-    )
-
     vlm_model: Optional[str] = Field(
         default=DEFAULT_VLM_MODEL,
         description="Model name for the VLM service.",
+    )
+    enable_llm_summary: bool = Field(
+        default=True,
+        description="Whether to request LLM summary generation from the captioning service.",
+    )
+    llm_service_url: Optional[str] = Field(
+        default=DEFAULT_LLM_SERVICE_URL,
+        description="Direct URL for the LLM service when external_services is true.",
     )
     llm_model: Optional[str] = Field(
         default=DEFAULT_LLM_MODEL,
@@ -234,12 +232,213 @@ class AutoLabelingTaskConfig(BaseModel):
         description="Per-task service mode switch; defaults to top-level external_services when omitted.",
     )
     output_directory: str = Field(
-        description="Output directory for auto-labeling artifacts. Must match top-level output_directory.",
+        default=DEFAULT_OUTPUT_DIRECTORY,
+        description="Output directory for captioning artifacts. Must match top-level output_directory.",
+    )
+
+
+class ImageAttributeAugmentationTaskConfig(BaseModel):
+    """Configuration for Image Attribute Augmentation task execution."""
+
+    config_file: Optional[str] = Field(
+        default=None,
+        description=(
+            "Remote pipeline configuration file passed to the service. Image Attribute Augmentation DAGs generate "
+            "and upload this file for each mapped task."
+        ),
+    )
+    mode: str = Field(
+        default="image_pas",
+        description="Pipeline mode passed to the service.",
+    )
+    person_input_dir: Optional[str] = Field(
+        default=None,
+        min_length=1,
+        description="Legacy storage directory used by the image/VQA fallback.",
+    )
+    vlm_service_url: Optional[str] = Field(
+        default=DEFAULT_VLM_SERVICE_URL,
+        description="Direct URL for the VLM service when external_services is true.",
+    )
+    vlm_model: Optional[str] = Field(
+        default=DEFAULT_VLM_MODEL,
+        description="Model name for the VLM service.",
+    )
+    llm_service_url: Optional[str] = Field(
+        default=DEFAULT_LLM_SERVICE_URL,
+        description="Direct URL for the LLM service when external_services is true.",
+    )
+    llm_model: Optional[str] = Field(
+        default=DEFAULT_LLM_MODEL,
+        description="Model name for the LLM service.",
+    )
+    external_services: Optional[bool] = Field(
+        default=True,
+        description="Per-task service mode switch; defaults to top-level external_services when omitted.",
+    )
+    output_directory: str = Field(
+        default=DEFAULT_OUTPUT_DIRECTORY,
+        description=(
+            "Output directory for Image Attribute Augmentation artifacts. "
+            "Must match top-level output_directory."
+        ),
+    )
+
+
+class VisualQATaskConfig(BaseModel):
+    """The input schema for visual question-answering configuration in the payload."""
+
+    generation_mode: str = Field(
+        default="window-vlm-llm",
+        description="Visual QA generation mode passed to the visual QA service.",
+    )
+    question_bank_file: str = Field(
+        default=DEFAULT_VISUAL_QA_QUESTION_BANK_FILE,
+        description="Question bank file passed to the visual QA service.",
+    )
+    input_source: str = Field(
+        default="auto",
+        description="Input source mode passed to the visual QA service.",
+    )
+    vlm_service_url: Optional[str] = Field(
+        default=DEFAULT_VLM_SERVICE_URL,
+        description="Direct URL for the VLM service when external_services is true.",
+    )
+    vlm_model: Optional[str] = Field(
+        default=DEFAULT_VLM_MODEL,
+        description="Model name for the VLM service.",
+    )
+    llm_service_url: Optional[str] = Field(
+        default=DEFAULT_LLM_SERVICE_URL,
+        description="Direct URL for the LLM service when external_services is true.",
+    )
+    llm_model: Optional[str] = Field(
+        default=DEFAULT_LLM_MODEL,
+        description="Model name for the LLM service.",
+    )
+    include_reasoning: bool = Field(
+        default=True,
+        description="Whether to pass --include-reasoning to the visual QA service.",
+    )
+    media_mode: str = Field(
+        default="auto",
+        description="Media mode passed to the visual QA service.",
+    )
+    external_services: Optional[bool] = Field(
+        default=True,
+        description="Per-task service mode switch; defaults to top-level external_services when omitted.",
+    )
+    output_directory: str = Field(
+        default=DEFAULT_OUTPUT_DIRECTORY,
+        description="Output directory for visual QA artifacts. Must match top-level output_directory.",
+    )
+
+
+class ReasoningTaskConfig(BaseModel):
+    """The input schema for reasoning label generation configuration in the payload."""
+
+    llm_service_url: Optional[str] = Field(
+        default=DEFAULT_LLM_SERVICE_URL,
+        description="Direct URL for the LLM service when external_services is true.",
+    )
+    llm_model: Optional[str] = Field(
+        default=DEFAULT_LLM_MODEL,
+        description="Model name for the LLM service.",
+    )
+    reasoning_mode: str = Field(
+        default="keep",
+        description="Reasoning mode passed to the reasoning service.",
+    )
+    external_services: Optional[bool] = Field(
+        default=True,
+        description="Per-task service mode switch; defaults to top-level external_services when omitted.",
+    )
+    output_directory: str = Field(
+        default=DEFAULT_OUTPUT_DIRECTORY,
+        description="Output directory for reasoning artifacts. Must match top-level output_directory.",
+    )
+
+
+class TrainingExportTaskConfig(BaseModel):
+    """The input schema for training-export dataset aggregation configuration."""
+
+    model_config = ConfigDict(extra="ignore")
+
+    formats: list[str] = Field(
+        default_factory=lambda: ["tao-vl-reason-v1.0"],
+        min_length=1,
+        description="Training export formats passed as repeated --training-export-format flags.",
+    )
+    tasks: list[str] = Field(
+        default_factory=list,
+        description="Optional DAFT task-type filters passed as repeated --training-export-task flags.",
+    )
+    description: Optional[str] = Field(
+        default=None,
+        description="Optional description metadata written into exported training datasets.",
+    )
+    license: Optional[str] = Field(
+        default="CC BY-NC-ND 4.0",
+        description="Optional license metadata written into exported training datasets.",
+    )
+    tags: list[str] = Field(
+        default_factory=list,
+        description="Optional tag metadata written as repeated --training-export-tag flags.",
+    )
+    copy_media: bool = Field(
+        default=True,
+        description="When false, pass --training-export-no-copy-media to reference source media in place.",
+    )
+    emit_media_root_as_null: bool = Field(
+        default=False,
+        description="When true, pass --training-export-emit-media-root-as-null for tao-vl-reason exports.",
+    )
+    output_directory: str = Field(
+        default=DEFAULT_OUTPUT_DIRECTORY,
+        description=(
+            "Base output directory for training-export artifacts. Must match top-level "
+            "output_directory."
+        ),
+    )
+
+
+class SuperResolutionTaskConfig(BaseModel):
+    """The input schema for super-resolution configuration in the payload."""
+
+    model_config = ConfigDict(extra="ignore")
+
+    output_directory: str = Field(
+        default=DEFAULT_OUTPUT_DIRECTORY,
+        description=(
+            "Output directory for super-resolution artifacts. Must match top-level "
+            "output_directory."
+        ),
+    )
+
+
+class DetectionAndTrackingTaskConfig(BaseModel):
+    """The input schema for detection-and-tracking configuration in the payload."""
+
+    model_config = ConfigDict(extra="ignore")
+
+    allow_model_download: bool = Field(
+        default=True,
+        description=(
+            "Whether to pass --allow-model-download to the detection-and-tracking "
+            "service container."
+        ),
+    )
+    output_directory: str = Field(
+        default=DEFAULT_OUTPUT_DIRECTORY,
+        description=(
+            "Output directory for detection-and-tracking artifacts. Must match top-level "
+            "output_directory."
+        ),
     )
 
 
 class ServiceLifecycleServiceConfig(BaseModel):
-    """Lifecycle settings for a single inference service (VLM or LLM)."""
+    """Lifecycle settings for one workflow-managed inference service."""
 
     enabled: bool = Field(
         default=False,
@@ -256,7 +455,7 @@ class ServiceLifecycleServiceConfig(BaseModel):
 
 
 class ServiceLifecycleTaskConfig(BaseModel):
-    """Per-service flags for internal inference endpoint deployment."""
+    """Lifecycle settings for services shared by multiple workflows."""
 
     vlm_service: ServiceLifecycleServiceConfig = Field(
         default_factory=ServiceLifecycleServiceConfig,
@@ -265,10 +464,6 @@ class ServiceLifecycleTaskConfig(BaseModel):
     llm_service: ServiceLifecycleServiceConfig = Field(
         default_factory=ServiceLifecycleServiceConfig,
         description="LLM service lifecycle settings.",
-    )
-    image_edit_service: ServiceLifecycleServiceConfig = Field(
-        default_factory=ServiceLifecycleServiceConfig,
-        description="Image-edit service lifecycle settings.",
     )
 
 
@@ -281,18 +476,22 @@ class CosmosTaskConfig(BaseModel):
     model_config = ConfigDict(extra="ignore")
 
     vlm_service_url: Optional[str] = Field(
-        default=None,
+        default=DEFAULT_VLM_SERVICE_URL,
         description="Direct URL for the VLM service (platform-agnostic). "
         "Preferred over vlm_service_function_id.",
     )
     llm_service_url: Optional[str] = Field(
-        default=None,
+        default=DEFAULT_LLM_SERVICE_URL,
         description="Direct URL for the LLM service (platform-agnostic). "
         "Preferred over llm_service_function_id.",
     )
     image_edit_service_url: Optional[str] = Field(
-        default=None,
+        default=DEFAULT_IMAGE_EDIT_SERVICE_URL,
         description="Direct URL for the image edit service.",
+    )
+    cosmos_transfer_service_url: Optional[str] = Field(
+        default=DEFAULT_COSMOS_TRANSFER_SERVICE_URL,
+        description="Direct URL for the Cosmos Transfer service.",
     )
     vlm_model: Optional[str] = Field(
         default=DEFAULT_VLM_MODEL,
@@ -306,6 +505,10 @@ class CosmosTaskConfig(BaseModel):
         default=DEFAULT_IMAGE_EDIT_MODEL,
         description="Model name for the image edit service.",
     )
+    cosmos_transfer_model: Optional[str] = Field(
+        default=DEFAULT_COSMOS_TRANSFER_MODEL,
+        description="Model name for the Cosmos Transfer service.",
+    )
     num_augmentation: Optional[int] = Field(
         default=1,
         ge=1,
@@ -316,7 +519,15 @@ class CosmosTaskConfig(BaseModel):
         description="Per-task service mode switch; defaults to top-level external_services when omitted.",
     )
     output_directory: str = Field(
+        default=DEFAULT_OUTPUT_DIRECTORY,
         description="Output directory for cosmos artifacts. Must match top-level output_directory.",
+    )
+    base_config_path: Optional[str] = Field(
+        default=None,
+        description=(
+            "Optional MSC-readable URI to the Cosmos YAML base configuration template. "
+            "When omitted, the workflow's bundled cosmos_config.yaml is used."
+        ),
     )
     variable_distribution: VariableDistribution = Field(
         default_factory=VariableDistribution,

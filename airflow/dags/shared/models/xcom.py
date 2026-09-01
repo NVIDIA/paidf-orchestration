@@ -41,9 +41,9 @@ class CosmosOutputResult(StoragePathListXcom):
 
 class EndpointXComValue(BaseModel):
     """
-    XCom key ``endpoint`` from deploy operators (e.g. NVCF).
+    XCom key ``endpoint`` from deploy operators (e.g. k8s).
 
-    Matches the flat dict pushed by ``NVCFOperator`` (url, resource_id, resource_version).
+    Matches the flat dict pushed by ``K8sServiceOperator`` (url, resource_id, resource_version).
     """
 
     model_config = ConfigDict(extra="ignore")
