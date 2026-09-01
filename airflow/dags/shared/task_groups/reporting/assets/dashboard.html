@@ -1,0 +1,119 @@
+<!doctype html>
+<!--
+  SPDX-FileCopyrightText: Copyright (c) 2026 NVIDIA CORPORATION & AFFILIATES. All rights reserved.
+  SPDX-License-Identifier: Apache-2.0
+
+  Skeleton for the orchestration statistics dashboard. The renderer replaces every
+  double-underscored placeholder below in a single pass, inlining the stylesheet,
+  the report data, and the script so the result is one portable file with no
+  external requests.
+-->
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width,initial-scale=1">
+<title>__DASHBOARD_TITLE__</title>
+<style>__DASHBOARD_STYLE__</style>
+</head>
+<body>
+<main>
+  <section class="hero">
+    <div class="eyebrow">PAIDF orchestration statistics</div>
+    <h1 id="report-title"></h1>
+    <div class="hero-meta">
+      <span id="dag"></span>
+      <code id="run-id"></code>
+      <span id="started"></span>
+    </div>
+    <div class="badge"><i class="dot"></i><span>Report generated</span></div>
+  </section>
+
+  <h2 class="section-title">Run at a glance</h2>
+  <section class="cards" id="cards"></section>
+
+  <div class="callout" id="sample-note">
+    <strong>Throughput interpretation</strong>
+    <span id="sample-text"></span>
+  </div>
+
+  <section class="panel">
+    <div class="panel-head">
+      <div>
+        <h2>Execution timeline</h2>
+        <div class="sub">Wall-clock placement and runtime from DAG start; zero-duration and not-yet-started tasks are omitted.</div>
+      </div>
+      <div class="legend">
+        <span><i class="swatch augmentation"></i>Augmentation</span>
+        <span><i class="swatch processing"></i>Post-processing</span>
+        <span><i class="swatch inference"></i>Attribute search</span>
+        <span><i class="swatch wait"></i>Wait</span>
+        <span><i class="swatch validation"></i>Validation</span>
+        <span><i class="swatch orchestration"></i>Orchestration</span>
+      </div>
+    </div>
+    <div class="timeline-wrap">
+      <div class="timeline">
+        <div class="axis" id="axis"></div>
+        <div id="timeline"></div>
+      </div>
+    </div>
+  </section>
+
+  <section class="two-col">
+    <div class="panel">
+      <div class="panel-head">
+        <div>
+          <h2>Queue time vs task runtime</h2>
+          <div class="sub">Executed tasks sorted by runtime; both bars share one scale.</div>
+        </div>
+        <div class="legend">
+          <span><i class="swatch" style="background:#f5b544"></i>Queued</span>
+          <span><i class="swatch augmentation"></i>Running</span>
+        </div>
+      </div>
+      <div class="metric-list" id="metrics"></div>
+    </div>
+    <div class="panel">
+      <div class="panel-head">
+        <div>
+          <h2>Operational signals</h2>
+          <div class="sub">Scheduling and bottleneck indicators.</div>
+        </div>
+      </div>
+      <div class="insights" id="insights"></div>
+    </div>
+  </section>
+
+  <section class="panel">
+    <div class="panel-head">
+      <div>
+        <h2>Task details</h2>
+        <div class="sub">Timing captured from the Airflow REST API while the reporting task was running.</div>
+      </div>
+    </div>
+    <div class="table-wrap">
+      <table>
+        <thead>
+          <tr>
+            <th>Task</th>
+            <th>State</th>
+            <th>Pool</th>
+            <th class="num">Queued</th>
+            <th class="num">Runtime</th>
+            <th class="num">Started +</th>
+          </tr>
+        </thead>
+        <tbody id="task-table"></tbody>
+      </table>
+    </div>
+  </section>
+
+  <footer id="footer"></footer>
+</main>
+
+<script type="application/json" id="report-data">__REPORT_DATA__</script>
+<script type="application/json" id="task-categories">__TASK_CATEGORIES__</script>
+<script type="application/json" id="dashboard-config">__DASHBOARD_CONFIG__</script>
+<script>__DASHBOARD_SCRIPT__</script>
+</body>
+</html>

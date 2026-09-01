@@ -6,6 +6,7 @@
 import importlib
 import inspect
 import re
+from datetime import timedelta
 from typing import Any, Dict, List, Optional, Tuple, Type, Union
 
 import yaml
@@ -23,25 +24,21 @@ from dags.shared.utils.logging import setup_logger
 # Operator class mapping for dynamic imports
 # Supports both canonical names and short aliases
 _OPERATOR_CLASS_MAP: Dict[str, str] = {
-    # NVCF operators
-    "NVCFOperator": "nvcf_plugin.operators.nvcf_operator.NVCFOperator",
-    "NVCFTaskOperator": "nvcf_plugin.operators.nvct_operator.NVCFTaskOperator",
-    "NVCFCleanupOperator": "nvcf_plugin.operators.nvcf_cleanup_operator.NVCFCleanupOperator",
     # Kubernetes operators
     "K8sServiceOperator": "k8s_plugin.operators.k8s_service_operator.K8sServiceOperator",
     "K8sTaskOperator": "k8s_plugin.operators.k8s_task_operator.K8sTaskOperator",
     "K8sCleanupOperator": "k8s_plugin.operators.k8s_cleanup_operator.K8sCleanupOperator",
-    # OSMO operators
-    "OsmoTaskOperator": "osmo_plugin.operators.osmo_task_operator.OsmoTaskOperator",
     # Short aliases
-    "nvcf": "nvcf_plugin.operators.nvcf_operator.NVCFOperator",
-    "nvct": "nvcf_plugin.operators.nvct_operator.NVCFTaskOperator",
-    "nvcf_cleanup": "nvcf_plugin.operators.nvcf_cleanup_operator.NVCFCleanupOperator",
     "k8s_service": "k8s_plugin.operators.k8s_service_operator.K8sServiceOperator",
     "k8s_task": "k8s_plugin.operators.k8s_task_operator.K8sTaskOperator",
     "k8s_cleanup": "k8s_plugin.operators.k8s_cleanup_operator.K8sCleanupOperator",
-    "osmo_task": "osmo_plugin.operators.osmo_task_operator.OsmoTaskOperator",
 }
+
+# Operator kwargs that carry environment entries. Operators declare these as
+# templated ``List[str]`` in ``"NAME:VALUE"`` form, but the builder holds them as
+# name-keyed dicts internally so profile, component, and caller overrides merge
+# per variable instead of replacing each other wholesale.
+_ENV_KWARGS = ("container_environment_variables", "secrets")
 
 
 class ComponentBuilder:
@@ -136,6 +133,63 @@ class ComponentBuilder:
             return []
         return [f"{k}:{v}" for k, v in env_dict.items()]
 
+    @staticmethod
+    def _to_env_dict(env: Union[Dict[str, Any], List[str], None]) -> Dict[str, Any]:
+        """
+        Normalize environment entries into a name-keyed dict.
+
+        Accepts either a mapping or the operators' ``["NAME:VALUE", ...]`` list
+        form. Only the first colon separates name from value, so values that
+        themselves contain colons (URLs, Jinja expressions) survive intact.
+
+        Args:
+            env: Mapping, ``"NAME:VALUE"`` list, or None
+
+        Returns:
+            Dict keyed by variable name, empty if env is None
+        """
+        if env is None:
+            return {}
+        if isinstance(env, dict):
+            return dict(env)
+        result: Dict[str, Any] = {}
+        for index, entry in enumerate(env):
+            name, separator, value = str(entry).partition(":")
+            if not separator or not name:
+                raise AirflowConfigException(
+                    f"Invalid environment entry at index {index}. "
+                    'Expected "NAME:VALUE" with a non-empty name.'
+                )
+            result[name] = value
+        return result
+
+    @staticmethod
+    def _resolve_execution_timeout(timeout_seconds: Any, component_name: str) -> timedelta:
+        """
+        Convert a manifest ``execution_timeout_seconds`` value into a timedelta.
+
+        Args:
+            timeout_seconds: Integer number of seconds from the manifest
+            component_name: Component name, used for error messages
+
+        Returns:
+            Equivalent timedelta for Airflow's ``execution_timeout``
+
+        Raises:
+            AirflowConfigException: If the value is not a positive integer
+        """
+        if isinstance(timeout_seconds, bool) or not isinstance(timeout_seconds, int):
+            raise AirflowConfigException(
+                f"Invalid execution_timeout_seconds for component '{component_name}'. "
+                "Expected an integer number of seconds."
+            )
+        if timeout_seconds <= 0:
+            raise AirflowConfigException(
+                f"Invalid execution_timeout_seconds for component '{component_name}'. "
+                "Value must be greater than zero."
+            )
+        return timedelta(seconds=timeout_seconds)
+
     def _get_profile(self, profile_name: str) -> DeploymentProfileConfig:
         """Get a deployment profile by name."""
         if profile_name not in self.manifest.deployment.profiles:
@@ -160,6 +214,41 @@ class ComponentBuilder:
             else:
                 result[k] = v
         return result
+
+    def _merge_overrides(
+        self,
+        kwargs: Dict[str, Any],
+        overrides: Optional[Dict[str, Any]],
+    ) -> Dict[str, Any]:
+        """
+        Apply caller overrides to manifest-derived operator kwargs.
+
+        Environment entries are normalized to name-keyed dicts on both sides so
+        ``_deep_merge`` combines them per variable, then renders them back into
+        the templated ``["NAME:VALUE", ...]`` lists expected by operators.
+
+        Every other key retains ``_deep_merge`` semantics: nested dictionaries
+        merge, while lists and scalar values are replaced.
+
+        Args:
+            kwargs: Operator kwargs built from the deployment profile and component
+            overrides: Caller-supplied overrides, highest precedence
+
+        Returns:
+            Merged kwargs, with environment entries in operator list form
+        """
+        if overrides:
+            overrides = dict(overrides)
+            for env_key in _ENV_KWARGS:
+                if env_key in overrides:
+                    overrides[env_key] = self._to_env_dict(overrides[env_key])
+
+        merged = self._deep_merge(kwargs, overrides)
+
+        for env_key in _ENV_KWARGS:
+            if env_key in merged:
+                merged[env_key] = self._to_env_list(merged[env_key])
+        return merged
 
     def _get_component(
         self, component_type: str, component_name: str
@@ -210,7 +299,7 @@ class ComponentBuilder:
         # Build operator kwargs
         kwargs: Dict[str, Any] = {
             "task_id": task_id or self._slugify(component_name),
-            "name": self._slugify(component_name),  # Slugify name to comply with NVCF naming rules
+            "name": self._slugify(component_name),
             **merged_config,  # Spread merged config
         }
 
@@ -226,13 +315,16 @@ class ComponentBuilder:
         elif component.container_args is not None:
             kwargs["container_args"] = component.container_args
 
-        # Handle secrets
+        # Secrets and environment variables stay name-keyed until the operator is
+        # built, so _deep_merge combines them per variable (see _ENV_KWARGS).
         if component.secrets:
-            kwargs["secrets"] = self._to_env_list(component.secrets)
+            kwargs["secrets"] = self._to_env_dict(component.secrets)
 
-        # Handle environment variables
         if component.environment:
-            kwargs["container_environment_variables"] = self._to_env_list(component.environment)
+            kwargs["container_environment_variables"] = self._to_env_dict(component.environment)
+
+        if component.volumes:
+            kwargs["volumes"] = list(component.volumes)
 
         # NGC model mounts for NVCF operators (K8s uses model_cache_pvc instead).
         if component.models:
@@ -249,8 +341,17 @@ class ComponentBuilder:
         else:
             raise AirflowConfigException(f"No pool found for profile {profile_name}")
 
-        # Apply overrides (highest precedence)
-        kwargs = self._deep_merge(kwargs, overrides)
+        # Manifests express execution timeouts in seconds; Airflow needs a timedelta.
+        # Resolve the manifest value before applying caller overrides so an explicit
+        # caller execution_timeout retains highest precedence.
+        timeout_seconds = kwargs.pop("execution_timeout_seconds", None)
+        if timeout_seconds is not None:
+            kwargs["execution_timeout"] = self._resolve_execution_timeout(
+                timeout_seconds, component_name
+            )
+
+        # Apply caller overrides last (highest precedence).
+        kwargs = self._merge_overrides(kwargs, overrides)
 
         kwargs = self._filter_operator_kwargs(operator_cls, kwargs)
 

@@ -6,35 +6,37 @@
 import ast
 import json
 import time
+from dataclasses import dataclass
 from typing import Any
 
 from airflow.exceptions import AirflowFailException
 from airflow.providers.standard.operators.empty import EmptyOperator
 from airflow.providers.standard.operators.python import BranchPythonOperator, PythonOperator
-from airflow.sdk import BaseOperator, TaskGroup
+from airflow.sdk import BaseOperator, TaskGroup, XComArg
 from airflow.task.trigger_rule import TriggerRule
+from pydantic import BaseModel
+from slot_holds.pool_slot_hold_operator import PoolSlotHoldOperator
 from triggers import XComWaitTrigger
 
 from dags.shared.models import (
     EndpointXComValue,
-    ServiceLifecycleTaskConfig,
+    ServiceLifecycleServiceConfig,
 )
 from dags.shared.utils.component_builder import ComponentBuilder
 
 # No timeout: startup tasks should remain deferred until shutdown publishes XCom.
 STARTUP_DEFER_TIMEOUT_SECONDS = None
 
-# Maps manifest endpoint keys to wait-task ids (legacy ``vlm``/``llm`` aliases included).
-ENDPOINT_WAIT_TASK_IDS: dict[str, str] = {
-    "vlm_service": "wait_for_vlm",
-    "llm_service": "wait_for_llm",
-    "image_edit_service": "wait_for_image_edit",
-}
-SERVICE_KIND_ALIASES: dict[str, str] = {
-    "vlm": "vlm_service",
-    "llm": "llm_service",
-    "image_edit_service": "image_edit_service",
-}
+# Deploy tasks leave the GPU pool; mapped holders occupy capacity instead.
+SERVICE_DEPLOY_CONTROL_POOL = "default_pool"
+
+
+@dataclass(frozen=True)
+class ServiceLifecycleSpec:
+    """Workflow-owned description of one managed service."""
+
+    component_key: str
+    wait_task_id: str
 
 
 def require_service_endpoint_from_xcom(
@@ -79,7 +81,7 @@ class WaitForServiceXComOperator(BaseOperator):
         service_lifecycle_config: str | dict[str, Any],
         watch_task_id: str,
         watch_key: str = "endpoint",
-        service_kind: str,
+        service_key: str,
         poll_interval_seconds: float = 10.0,
         timeout_seconds: int | None = 600,
         **kwargs: Any,
@@ -88,15 +90,11 @@ class WaitForServiceXComOperator(BaseOperator):
         self.service_lifecycle_config = service_lifecycle_config
         self.watch_task_id = watch_task_id
         self.watch_key = watch_key
-        self.service_kind = service_kind
+        self.service_key = service_key
         self.poll_interval_seconds = poll_interval_seconds
         self.timeout_seconds = timeout_seconds
 
     def execute(self, context: dict[str, Any]) -> None:
-        config_field = SERVICE_KIND_ALIASES.get(self.service_kind, self.service_kind)
-        if config_field not in ServiceLifecycleTaskConfig.model_fields:
-            raise AirflowFailException(f"Unknown service_kind: {self.service_kind}")
-
         try:
             lifecycle = ServiceLifecycleTaskGroup.parse_service_lifecycle_config(
                 self.service_lifecycle_config
@@ -104,7 +102,10 @@ class WaitForServiceXComOperator(BaseOperator):
         except Exception as e:
             raise AirflowFailException(f"Service lifecycle config validation failed: {e}") from e
 
-        if not getattr(lifecycle, config_field).enabled:
+        service_config = ServiceLifecycleTaskGroup.require_service_config(
+            lifecycle, self.service_key
+        )
+        if not service_config.enabled:
             return
 
         run_id = context["dag_run"].run_id
@@ -135,10 +136,14 @@ class ServiceLifecycleTaskGroup:
     Task Group for managing the lifecycle of services used in the DAG (e.g. LLM, VLM services).
     """
 
+    STARTUP_GROUP_ID = "service_startup"
+    SHUTDOWN_GROUP_ID = "service_shutdown"
+
     def __init__(
         self,
         builder: ComponentBuilder,
         service_lifecycle_config: str,
+        service_specs: list[ServiceLifecycleSpec] | tuple[ServiceLifecycleSpec, ...],
         defer_until_shutdown: str | bool = True,
         payload_task_id: str = "validate_payload",
     ):
@@ -148,79 +153,111 @@ class ServiceLifecycleTaskGroup:
         Args:
             builder: Component builder for manifest-defined endpoints.
             service_lifecycle_config: Templated service lifecycle config (e.g. from DAG params).
+            service_specs: Workflow-owned service component and wait-task definitions.
             defer_until_shutdown: When false, deploy tasks return after the endpoint is ready
                 instead of deferring until shutdown. Accepts a Jinja template for runtime params.
             payload_task_id: Task id used to pull validated payload XCom for per-service overrides.
         """
         self.builder = builder
         self.service_lifecycle_config = service_lifecycle_config
+        self.service_specs = tuple(service_specs)
+        if not self.service_specs:
+            raise ValueError("service_specs must contain at least one service")
+        component_keys = [spec.component_key for spec in self.service_specs]
+        wait_task_ids = [spec.wait_task_id for spec in self.service_specs]
+        if len(component_keys) != len(set(component_keys)):
+            raise ValueError("service_specs component_key values must be unique")
+        if len(wait_task_ids) != len(set(wait_task_ids)):
+            raise ValueError("service_specs wait_task_id values must be unique")
         self.defer_until_shutdown = defer_until_shutdown
         self.payload_task_id = payload_task_id
 
+    def shutdown_xcom_task_id(self, component_key: str) -> str:
+        """Full task id whose XCom releases deploy/slot-hold deferral for a service."""
+        return f"{self.SHUTDOWN_GROUP_ID}.{self.get_shutdown_task_name(component_key)}"
+
     @staticmethod
-    def parse_service_lifecycle_config(value: Any) -> ServiceLifecycleTaskConfig:
+    def parse_service_lifecycle_config(
+        value: Any,
+    ) -> dict[str, ServiceLifecycleServiceConfig]:
         """
         Parse service lifecycle config from Airflow-templated values.
 
         Supports a dict (native XCom/param), JSON (``| tojson``), or a Python literal string.
         """
-        if isinstance(value, ServiceLifecycleTaskConfig):
-            return value
-        if isinstance(value, dict):
-            return ServiceLifecycleTaskConfig.model_validate(value)
+        if isinstance(value, BaseModel):
+            value = value.model_dump()
 
-        if not isinstance(value, str):
+        if isinstance(value, dict):
+            parsed = value
+        elif not isinstance(value, str):
             raise AirflowFailException(
                 f"service_lifecycle_config must be a dict or str, got {type(value).__name__}"
             )
+        else:
+            raw = value.strip()
+            if not raw:
+                raise AirflowFailException("service_lifecycle_config is empty")
+            if raw.startswith("{{") and raw.endswith("}}"):
+                raise AirflowFailException(
+                    "service_lifecycle_config was not rendered by Airflow; ensure the field is "
+                    "listed in template_fields or use a PythonOperator op_kwargs template"
+                )
 
-        raw = value.strip()
-        if not raw:
-            raise AirflowFailException("service_lifecycle_config is empty")
-        if raw.startswith("{{") and raw.endswith("}}"):
-            raise AirflowFailException(
-                "service_lifecycle_config was not rendered by Airflow; ensure the field is "
-                "listed in template_fields or use a PythonOperator op_kwargs template"
-            )
+            try:
+                parsed = json.loads(raw)
+            except json.JSONDecodeError:
+                try:
+                    parsed = ast.literal_eval(raw)
+                except (ValueError, SyntaxError) as e:
+                    raise AirflowFailException(
+                        "service_lifecycle_config is not valid JSON or a Python literal dict"
+                    ) from e
 
-        try:
-            return ServiceLifecycleTaskConfig.model_validate(json.loads(raw))
-        except json.JSONDecodeError:
-            pass
-
-        try:
-            parsed = ast.literal_eval(raw)
-        except (ValueError, SyntaxError) as e:
-            raise AirflowFailException(
-                "service_lifecycle_config is not valid JSON or a Python literal dict"
-            ) from e
-
-        return ServiceLifecycleTaskConfig.model_validate(parsed)
+        if not isinstance(parsed, dict):
+            raise AirflowFailException("service_lifecycle_config must contain a dictionary")
+        return {
+            key: ServiceLifecycleServiceConfig.model_validate(config)
+            for key, config in parsed.items()
+        }
 
     @staticmethod
     def resolve_services_to_deploy(
-        lifecycle: ServiceLifecycleTaskConfig,
+        lifecycle: dict[str, ServiceLifecycleServiceConfig],
+        service_keys: list[str] | set[str],
         manifest_endpoint_keys: list[str] | set[str],
     ) -> list[str]:
         """
-        Return endpoint names to deploy from ``ServiceLifecycleTaskConfig`` fields.
+        Return enabled workflow service names that are present in the manifest.
 
         Each config field name (e.g. ``vlm_service``) must match a manifest endpoint name
         when ``enabled`` is true; otherwise an exception is raised.
         """
         manifest_keys = set(manifest_endpoint_keys)
         to_deploy: list[str] = []
-        for field_name in ServiceLifecycleTaskConfig.model_fields:
-            service = getattr(lifecycle, field_name)
-            if not service.enabled:
+        for service_key in service_keys:
+            service_config = ServiceLifecycleTaskGroup.require_service_config(
+                lifecycle, service_key
+            )
+            if not service_config.enabled:
                 continue
-            if field_name not in manifest_keys:
+            if service_key not in manifest_keys:
                 raise AirflowFailException(
-                    f"service_lifecycle.{field_name}.enabled is true but endpoint "
-                    f"{field_name!r} is not defined in the deployment manifest"
+                    f"service_lifecycle.{service_key}.enabled is true but endpoint "
+                    f"{service_key!r} is not defined in the deployment manifest"
                 )
-            to_deploy.append(field_name)
+            to_deploy.append(service_key)
         return to_deploy
+
+    @staticmethod
+    def require_service_config(
+        lifecycle: dict[str, ServiceLifecycleServiceConfig], service_key: str
+    ) -> ServiceLifecycleServiceConfig:
+        """Return a configured service or fail consistently across lifecycle stages."""
+        service_config = lifecycle.get(service_key)
+        if service_config is None:
+            raise AirflowFailException(f"Service lifecycle config does not define {service_key!r}")
+        return service_config
 
     @staticmethod
     def get_startup_task_name(component_key: str) -> str:
@@ -230,25 +267,59 @@ class ServiceLifecycleTaskGroup:
         return f"startup_{component_key}"
 
     @staticmethod
+    def get_prepare_slot_holds_task_name(component_key: str) -> str:
+        """Task that emits replica indices for mapped GPU pool slot holders."""
+        return f"prepare_slot_holds_{component_key}"
+
+    @staticmethod
+    def get_hold_slots_task_name(component_key: str) -> str:
+        """Mapped task that occupies per-replica pool slots until shutdown."""
+        return f"hold_slots_{component_key}"
+
+    @staticmethod
     def get_shutdown_task_name(component_key: str) -> str:
         """
         Get the names of the shutdown tasks for the services used in the DAG (e.g. LLM, VLM services).
         """
         return f"shutdown_{component_key}"
 
-    def service_config_field_template(self, component_key: str, field: str, default: int = 1) -> str:
+    def service_config_field_template(
+        self, component_key: str, field: str, default: int = 1
+    ) -> str:
         """Build a Jinja template for a field under ``service_lifecycle.<component_key>``."""
         return (
             f"{{{{ (ti.xcom_pull(task_ids='{self.payload_task_id}', key='return_value') or {{}})"
             f".get('service_lifecycle', {{}}).get('{component_key}', {{}}).get('{field}', {default}) }}}}"
         )
 
+    def _endpoint_pool_settings(self, component_key: str) -> tuple[str, int]:
+        """Return (pool, pool_slots) for a manifest endpoint's deployment profile."""
+        component = self.builder.manifest.deployment.components.endpoints[component_key]
+        profile = self.builder._get_profile(component.deployment_profile)
+        pool_slots = getattr(profile, "pool_slots", 1) or 1
+        return profile.pool, int(pool_slots)
+
+    @staticmethod
+    def prepare_replica_indices(
+        component_key: str, payload_task_id: str, **context: Any
+    ) -> list[int]:
+        """Return ``list(range(replicas))`` from validated payload service lifecycle config."""
+        ti = context["ti"]
+        payload = ti.xcom_pull(task_ids=payload_task_id, key="return_value") or {}
+        service_cfg = (payload.get("service_lifecycle") or {}).get(component_key) or {}
+        replicas = int(service_cfg.get("replicas", 1))
+        if replicas < 1:
+            raise AirflowFailException(
+                f"service_lifecycle.{component_key}.replicas must be >= 1, got {replicas}"
+            )
+        return list(range(replicas))
+
     @staticmethod
     def deployment_decision(**context) -> list[str]:
         """
-        Decide whether to deploy services based on ``ServiceLifecycleTaskConfig`` fields.
+        Decide whether to deploy the services configured by the workflow.
 
-        Only services with ``enabled`` true are deployed; each field name must match a
+        Only services with ``enabled`` true are deployed; each service key must match a
         manifest endpoint name.
         """
         try:
@@ -263,35 +334,39 @@ class ServiceLifecycleTaskGroup:
             )
         startup = context["startup"]
 
-        if "services" not in context:
+        if "service_keys" not in context:
             raise AirflowFailException(
-                "Services variable is required to decide whether to deploy the services."
+                "Service keys are required to decide whether to deploy the services."
             )
-        manifest_endpoint_keys = context["services"]
+        if "manifest_endpoint_keys" not in context:
+            raise AirflowFailException(
+                "Manifest endpoint keys are required to decide whether to deploy the services."
+            )
 
         services_to_deploy = ServiceLifecycleTaskGroup.resolve_services_to_deploy(
-            lifecycle, manifest_endpoint_keys
+            lifecycle,
+            context["service_keys"],
+            context["manifest_endpoint_keys"],
         )
+
+        if not startup:
+            raise AirflowFailException(
+                "deployment_decision is only used for service startup; "
+                "cleanup always runs best-effort."
+            )
 
         if not services_to_deploy:
             # All services external — skip deployment
-            if startup:
-                return ["service_startup.skip_startup"]
-            else:
-                return ["service_shutdown.skip_shutdown"]
-        else:
-            if startup:
-                startup_task_names = [
-                    f"service_startup.{ServiceLifecycleTaskGroup.get_startup_task_name(component_key)}"
-                    for component_key in services_to_deploy
-                ]
-                return startup_task_names
-            else:
-                shutdown_task_names = [
-                    f"service_shutdown.{ServiceLifecycleTaskGroup.get_shutdown_task_name(component_key)}"
-                    for component_key in services_to_deploy
-                ]
-                return shutdown_task_names
+            return [f"{ServiceLifecycleTaskGroup.STARTUP_GROUP_ID}.skip_startup"]
+
+        # Branch into prepare tasks; holders + deploy run downstream.
+        return [
+            (
+                f"{ServiceLifecycleTaskGroup.STARTUP_GROUP_ID}."
+                + ServiceLifecycleTaskGroup.get_prepare_slot_holds_task_name(component_key)
+            )
+            for component_key in services_to_deploy
+        ]
 
     def get_startup_decision_task(self) -> BranchPythonOperator:
         """
@@ -303,22 +378,10 @@ class ServiceLifecycleTaskGroup:
             op_kwargs={
                 "service_lifecycle_config": self.service_lifecycle_config,
                 "startup": True,
-                "services": list(self.builder.manifest.deployment.components.endpoints.keys()),
-            },
-        )
-
-    def get_shutdown_decision_task(self) -> BranchPythonOperator:
-        """
-        Get the decision task for whether to shutdown the services used in the DAG (e.g. LLM, VLM services).
-        """
-        return BranchPythonOperator(
-            task_id="shutdown_decision",
-            python_callable=self.deployment_decision,
-            trigger_rule=TriggerRule.ALL_DONE,
-            op_kwargs={
-                "service_lifecycle_config": self.service_lifecycle_config,
-                "startup": False,
-                "services": list(self.builder.manifest.deployment.components.endpoints.keys()),
+                "service_keys": [spec.component_key for spec in self.service_specs],
+                "manifest_endpoint_keys": list(
+                    self.builder.manifest.deployment.components.endpoints.keys()
+                ),
             },
         )
 
@@ -345,45 +408,80 @@ class ServiceLifecycleTaskGroup:
         """
         Get the Task Group for managing the lifecycle of services used in the DAG (e.g. LLM, VLM services).
 
-        Flow: startup_decision -> [deploy_tasks | skip_startup]
-        Deploy tasks use manifest profile + endpoint configuration; replica count comes from
-        ``service_lifecycle.<service>.replicas`` (default 1).
+        Flow: startup_decision -> prepare_slot_holds -> [hold_slots.expand | deploy] | skip_startup
+
+        Mapped ``hold_slots`` tasks occupy ``profile.pool_slots`` each (length = replicas) on the
+        GPU pool. Deploy runs on ``default_pool`` and waits for those holds before creating
+        capacity. Replica count comes from ``service_lifecycle.<service>.replicas`` (default 1)
+        and is passed as ``replicas`` to both K8s and NVCF endpoint operators (NVCF maps it to
+        min_instances = max_instances on the deployment API).
         """
-        with TaskGroup(group_id="service_startup") as task_group:
+        with TaskGroup(group_id=self.STARTUP_GROUP_ID) as task_group:
             startup_decision = self.get_startup_decision_task()
-            deploy_tasks = []
-            for (
-                component_key,
-                component_value,
-            ) in self.builder.manifest.deployment.components.endpoints.items():
+            prepare_tasks = []
+            manifest_endpoints = self.builder.manifest.deployment.components.endpoints
+            for spec in self.service_specs:
+                component_key = spec.component_key
+                component_value = manifest_endpoints.get(component_key)
+                if component_value is None:
+                    continue
                 component_secrets = [
                     f"{key}:{value}" for key, value in (component_value.secrets or {}).items()
                 ]
-                deploy_tasks.append(
-                    self.builder.build_endpoint(
-                        component_key,
-                        task_id=ServiceLifecycleTaskGroup.get_startup_task_name(component_key),
-                        secrets=component_secrets,
-                        replicas=self.service_config_field_template(component_key, "replicas"),
-                        defer_until_xcom=self.defer_until_shutdown,
-                        defer_until_xcom_task_id=f"service_shutdown.{ServiceLifecycleTaskGroup.get_shutdown_task_name(component_key)}",
-                        defer_until_xcom_timeout_seconds=STARTUP_DEFER_TIMEOUT_SECONDS,
-                    )
+                replicas = self.service_config_field_template(component_key, "replicas")
+                pool_name, pool_slots = self._endpoint_pool_settings(component_key)
+                shutdown_tid = self.shutdown_xcom_task_id(component_key)
+                hold_task_id = ServiceLifecycleTaskGroup.get_hold_slots_task_name(component_key)
+                # Full task id as stored on TaskInstance (includes TaskGroup prefix).
+                hold_task_id_full = f"{self.STARTUP_GROUP_ID}.{hold_task_id}"
+
+                prepare = PythonOperator(
+                    task_id=ServiceLifecycleTaskGroup.get_prepare_slot_holds_task_name(
+                        component_key
+                    ),
+                    python_callable=ServiceLifecycleTaskGroup.prepare_replica_indices,
+                    op_kwargs={
+                        "component_key": component_key,
+                        "payload_task_id": self.payload_task_id,
+                    },
                 )
+                prepare_tasks.append(prepare)
+
+                holders = PoolSlotHoldOperator.partial(
+                    task_id=hold_task_id,
+                    pool=pool_name,
+                    pool_slots=pool_slots,
+                    defer_until_xcom_task_id=shutdown_tid,
+                    defer_until_xcom_timeout_seconds=STARTUP_DEFER_TIMEOUT_SECONDS,
+                ).expand(replica_index=XComArg(prepare))
+
+                deploy = self.builder.build_endpoint(
+                    component_key,
+                    task_id=ServiceLifecycleTaskGroup.get_startup_task_name(component_key),
+                    secrets=component_secrets,
+                    replicas=replicas,
+                    defer_until_xcom=self.defer_until_shutdown,
+                    defer_until_xcom_task_id=shutdown_tid,
+                    defer_until_xcom_timeout_seconds=STARTUP_DEFER_TIMEOUT_SECONDS,
+                    # GPU capacity is reserved by mapped holders, not the deploy task.
+                    pool=SERVICE_DEPLOY_CONTROL_POOL,
+                    pool_slots=1,
+                    slot_hold_task_id=hold_task_id_full,
+                )
+                prepare >> [holders, deploy]
+
             skip_startup = EmptyOperator(task_id="skip_startup")
-            startup_decision >> [*deploy_tasks, skip_startup]
+            startup_decision >> [*prepare_tasks, skip_startup]
         return task_group
 
     def get_wait_for_services_tasks(
         self,
-        task_group_id: str = "service_startup",
+        task_group_id: str = STARTUP_GROUP_ID,
     ) -> dict[str, WaitForServiceXComOperator]:
         """
-        Return wait tasks keyed by service lifecycle config field (e.g. ``vlm_service``).
+        Return wait tasks for the workflow-owned service specifications.
 
-        One wait task is created for every entry in ``ENDPOINT_WAIT_TASK_IDS`` that has a
-        matching ``ServiceLifecycleTaskConfig`` field. Manifest contents are not used to
-        filter wait tasks; if internal deployment is disabled, the wait task exits without
+        If internal deployment is disabled for a service, its wait task exits without
         deferring.
         """
         # No timeout: wait tasks should defer until startup publishes endpoint XCom.
@@ -392,33 +490,38 @@ class ServiceLifecycleTaskGroup:
             "timeout_seconds": None,
             "service_lifecycle_config": self.service_lifecycle_config,
         }
-        lifecycle_fields = set(ServiceLifecycleTaskConfig.model_fields)
         wait_tasks: dict[str, WaitForServiceXComOperator] = {}
-        for endpoint_key, wait_task_id in ENDPOINT_WAIT_TASK_IDS.items():
-            if endpoint_key not in lifecycle_fields:
-                continue
+        for spec in self.service_specs:
+            endpoint_key = spec.component_key
             startup_task_id = (
                 f"{task_group_id}.{ServiceLifecycleTaskGroup.get_startup_task_name(endpoint_key)}"
             )
             wait_tasks[endpoint_key] = WaitForServiceXComOperator(
-                task_id=wait_task_id,
+                task_id=spec.wait_task_id,
                 watch_task_id=startup_task_id,
                 watch_key="endpoint",
-                service_kind=endpoint_key,
+                service_key=endpoint_key,
                 **common_kw,
             )
         return wait_tasks
 
     def get_service_shutdown_task_group(self) -> TaskGroup:
         """
-        Get the Task Group for managing the lifecycle of services used in the DAG (e.g. LLM, VLM services).
+        Build cleanup tasks for every workflow service.
+
+        Each ``shutdown_<service>`` is independently chainable. Cleanup is
+        best-effort (skip if the service was never deployed).
         """
-        with TaskGroup(group_id="service_shutdown") as task_group:
-            shutdown_decision = self.get_shutdown_decision_task()
+        with TaskGroup(group_id=self.SHUTDOWN_GROUP_ID) as task_group:
             services = []
-            for component_key in self.builder.manifest.deployment.components.endpoints.keys():
-                startup_tid = "service_startup." + ServiceLifecycleTaskGroup.get_startup_task_name(
-                    component_key
+            manifest_endpoint_keys = self.builder.manifest.deployment.components.endpoints.keys()
+            for spec in self.service_specs:
+                component_key = spec.component_key
+                if component_key not in manifest_endpoint_keys:
+                    continue
+                startup_tid = (
+                    f"{self.STARTUP_GROUP_ID}."
+                    + ServiceLifecycleTaskGroup.get_startup_task_name(component_key)
                 )
                 function_id = (
                     "{{ (ti.xcom_pull(task_ids='"
@@ -439,9 +542,10 @@ class ServiceLifecycleTaskGroup:
                 )
                 if cleanup_op:
                     services.append(cleanup_op)
-            services.append(EmptyOperator(task_id="skip_shutdown"))
             join_after_shutdown = EmptyOperator(
-                task_id="join_after_shutdown", trigger_rule=TriggerRule.NONE_FAILED_MIN_ONE_SUCCESS
+                task_id="join_after_shutdown",
+                trigger_rule=TriggerRule.ALL_DONE,
             )
-            (shutdown_decision >> services >> join_after_shutdown)
+            if services:
+                services >> join_after_shutdown
         return task_group

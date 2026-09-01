@@ -1,0 +1,11 @@
+attribute_json: s3://my-bucket/path/to/augmented_data.json
+
+bundle_query_generation: true
+query_prompt_file: s3://my-bucket/path/to/image_attribute_augmentation_synonymous_query_prompt.json
+bundle_query_count: 3
+
+llm_provider: openai-compatible
+llm_endpoint_url: http://<llm-endpoint-url>/v1
+llm_model: <llm-model>
+llm_temperature: 0.2
+llm_top_p: 0.9

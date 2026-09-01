@@ -6,7 +6,7 @@ Manifest YAML Models (for ComponentBuilder)
 
 These models validate the new manifest YAML format used by ComponentBuilder.
 This format supports reusable components and deployment profiles.
-See: auto_labeling_nvcf_manifest.yaml for example format.
+See: xxxxxxxxxx_k8s_manifest.yaml for example format.
 Pools are defined in Helm values (airflow.pools) and created at launch.
 """
 
@@ -19,16 +19,20 @@ class DeploymentProfileConfig(BaseModel):
     """Configuration for a deployment profile."""
 
     operator: str = Field(
-        ..., description="Operator class name (e.g., 'NVCFOperator', 'NVCFTaskOperator')"
+        ..., description="Operator class name (e.g., 'K8sServiceOperator', 'K8sTaskOperator')"
     )
     cleanup_operator: Optional[str] = Field(
         default=None,
-        description="Cleanup operator class name for endpoint teardown (e.g., 'NVCFCleanupOperator'). "
+        description="Cleanup operator class name for endpoint teardown (e.g., 'K8sCleanupOperator'). "
         "If not set, no cleanup task is created for this profile.",
     )
     configuration: Optional[Dict[str, Any]] = Field(
         default=None,
-        description="Operator configuration parameters (backend, gpu, instance_type, etc.)",
+        description=(
+            "Default operator configuration for all components using this profile "
+            "(backend, gpu, instance_type, node_selector, tolerations, health checks, polling, etc.). "
+            "Merged with component.configuration; component values override profile defaults."
+        ),
     )
     pool: str = Field(
         ...,
@@ -36,7 +40,10 @@ class DeploymentProfileConfig(BaseModel):
     )
     pool_slots: Optional[int] = Field(
         default=1,
-        description="Number of pool slots this profile uses per task/endpoint (default 1).",
+        description=(
+            "Number of pool slots this profile uses per replica/instance (default 1). "
+            "Service lifecycle reserves pool_slots × replicas via mapped slot-hold tasks."
+        ),
     )
 
 
@@ -55,7 +62,10 @@ class ComponentConfig(BaseModel):
     )
     configuration: Optional[Dict[str, Any]] = Field(
         default=None,
-        description="Component-specific configuration overrides",
+        description=(
+            "Optional overrides for deployment profile configuration "
+            "(health checks, instance counts, node_selector, tolerations, task timeouts, etc.)"
+        ),
     )
     secrets: Optional[Dict[str, str]] = Field(
         default=None,
@@ -65,6 +75,14 @@ class ComponentConfig(BaseModel):
         default=None,
         description="Environment variables as key-value pairs",
         alias="env",
+    )
+    volumes: Optional[List[Dict[str, Any]]] = Field(
+        default=None,
+        description=(
+            "Kubernetes volumes to mount on K8s task pods. Each entry needs a "
+            "name, mountPath, and a volume source (for example emptyDir). "
+            "The operator applies these as pod volumes and container volumeMounts."
+        ),
     )
     models: Optional[List[str]] = Field(
         default=None,
@@ -146,7 +164,7 @@ class ManifestConfig(BaseModel):
     deployment:
       profiles:
         profile_name:
-          operator: NVCFOperator
+          operator: K8sServiceOperator
           configuration: {...}
       components:
         endpoints:

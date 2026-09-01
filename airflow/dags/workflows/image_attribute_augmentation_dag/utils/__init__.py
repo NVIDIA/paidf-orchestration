@@ -3,6 +3,9 @@
 
 """Image Attribute Augmentation DAG task callables."""
 
-from dags.workflows.image_attribute_augmentation_dag.utils.image_processing import IMAGE_EXTENSIONS, combine_panes
+from dags.workflows.image_attribute_augmentation_dag.utils.image_processing import (
+    IMAGE_EXTENSIONS,
+    combine_panes,
+)
 
 __all__ = ["IMAGE_EXTENSIONS", "combine_panes"]

@@ -1,33 +1,39 @@
-# Image edit — text-template captioning with attribute verification (person clothing)
-
 data:
   - inputs:
-      rgb: "/app/data/input.png"
+      rgb: <> # This field is filled in by Airflow
     output:
-      video: "/app/data/output.png"
-      caption: "/app/data/prompt.txt"
-      metadata: "/app/data/metadata.json"
+      video: <> # This field is filled in by Airflow
+      caption: <> # This field is filled in by Airflow
+      metadata: <> # This field is filled in by Airflow
 
 endpoints:
-  vlm:
-    url: "http://localhost:8000/v1"
-    model: "Qwen/Qwen3-VL-30B-A3B-Instruct"
-  llm:
-    url: "http://localhost:8001/v1"
-    model: "Qwen/Qwen2.5-14B-Instruct"
-  image_edit:
-    url: "http://localhost:8002/v1"
-    model: "Qwen/Qwen-Image-Edit-2511"
+  - id: vlm
+    role: vlm
+    url: <> # This field is filled in by Airflow
+    model: <> # This field is filled in by Airflow
+    timeout: 120
+  - id: llm
+    role: llm
+    url: <> # This field is filled in by Airflow
+    model: <> # This field is filled in by Airflow
+    timeout: 120
+  - id: image_edit
+    role: image_edit
+    url: <> # This field is filled in by Airflow
+    model: <> # This field is filled in by Airflow
+    adapter: openai.chat.completions
+    api_key_env: BUILD_NVIDIA_API_KEY
+    timeout: 200
 
 pipeline:
   retry: 0
-  request_timeout: 200
   logging:
     enabled: true
     level: "INFO"
 
 captioning:
   llm:
+    endpoint_id: llm
     text: "Change the person's clothing to a {top_outer_color} {top_outer_type}, with {bottom_color} {bottom_type}, and {shoe_color} {shoe_type}. The person's clothing and appearance is identical in all views."
     variables:
       top_outer_color: ["beige"]
@@ -47,11 +53,11 @@ captioning:
 augmentation:
   model:
     name: "image-edit"
-    executor_type: "gradio"
   parameters:
-    num_inference_steps: 50
-    guidance_scale: 1.0
-    seed: null
+    extra_body:
+      num_inference_steps: 50
+      guidance_scale: 1.0
+      seed: null
 
 evaluators:
   - attribute_verification:
@@ -65,6 +71,7 @@ evaluators:
           Write one natural sentence describing the person's appearance and that it is consistent across all views.
       exclude_variables: ["shoe_type", "shoe_color"]
       question_generation:
+        endpoint_id: llm
         system_prompt: |
           You are an expert at creating multiple choice verification questions for human attributes.
           The images you analyze always contain a single person with one or multiple views of that same person.
@@ -83,6 +90,7 @@ evaluators:
           max_tokens: 2048
           stream: true
       vlm_verification:
+        endpoint_id: vlm
         system_prompt: |
           You are an expert vision model tasked with answering multiple choice questions about images of humans.
           The images may have one or multiple views of the same person.

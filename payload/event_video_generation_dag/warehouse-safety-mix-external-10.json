@@ -1,0 +1,39 @@
+{
+  "input_path": "s3://<your-input-bucket>/<your-workflow>/input",
+  "max_images": 1,
+  "output_directory": "s3://<your-output-bucket>/<your-workflow>/output",
+  "external_services": true,
+  "service_lifecycle": {
+    "vlm_service": {
+      "enabled": false
+    },
+    "llm_service": {
+      "enabled": false
+    },
+    "image2video_service": {
+      "enabled": false
+    }
+  },
+  "cosmos": {
+    "num_augmentation": 10,
+    "external_services": true,
+    "output_directory": "s3://<your-output-bucket>/<your-workflow>/output",
+    "vlm_service_url": "https://<your-vlm-endpoint>/v1",
+    "llm_service_url": "https://<your-llm-endpoint>/v1",
+    "image2video_service_url": "https://<your-image2video-endpoint>/v1",
+    "variable_distribution": {
+      "variables": {
+        "anomaly_type": {
+          "person_climbing": 0.2,
+          "person_running": 0.2,
+          "smoking_or_vaping": 0.2,
+          "person_fighting": 0.2,
+          "fire_or_smoke": 0.2
+        },
+        "env_type": {
+          "warehouse": 1.0
+        }
+      }
+    }
+  }
+}

@@ -30,7 +30,7 @@ For Helm value, secret changes or dependencies adjustment, run `make install sdg
 
 You can update models in two places, depending on whether you want per-run overrides or new defaults:
 
-1. **Per workflow run (payload override):** Set `cosmos.vlm_model`, `cosmos.llm_model`, `cosmos.image_edit_model`, `auto_labeling.vlm_model`, and `auto_labeling.llm_model` in the trigger payload. See [Payload Guide](payload-guide.md#cosmos-fields-augmentation).
+1. **Per workflow run (payload override):** Set `cosmos.vlm_model`, `cosmos.llm_model`, `cosmos.image_edit_model`, `event_and_person_attribute_search.vlm_model`, and `event_and_person_attribute_search.llm_model` in the trigger payload. See the [Image Attribute Augmentation Payload Guide](image-attribute-augmentation/payload-guide.md#cosmos-fields-augmentation).
 2. **Default in-cluster endpoint models:** Edit `airflow/dags/workflows/image_attribute_augmentation_dag/configs/image_attribute_augmentation_k8s_manifest.yaml` (and the mirrored `deploy/.../image_attribute_augmentation_k8s_manifest.yaml`) under `deployment.components.endpoints.*`.
 
 When updating default in-cluster endpoint models:
@@ -39,20 +39,20 @@ When updating default in-cluster endpoint models:
 - Ensure your HuggingFace token has access to the selected model repositories.
 - Run `make sync-dag` to publish DAG/manifests updates.
 
-## Scale internal image-edit throughput
+## Scale internal model throughput
 
-When `external_services` is `false`, Image Attribute Augmentation deploys an in-cluster image-edit endpoint and routes augmentation work through the Airflow pool **`internal_image_edit_service_pool`**. That pool controls how many augmentation tasks may run at once against the internal service.
+When `external_services` is `false`, workflows deploy an in-cluster model endpoint and routes augmentation work through its corresponding pool. That pool controls how many augmentation tasks may run at once against the internal model service.
 
-The default in `deploy/values.yaml` is **1 slot**:
+For example, the image edit model service (used by the Image Attribute Augmentation workflow) uses the `iaa_internal_image_edit_service_pool` to control the number of augmentations that can be run in parallel:
 
 ```yaml
-    - name: "internal_image_edit_service_pool"
-      slots: 1
-      description: "Internal image-edit service pool"
+    - name: "iaa_internal_image_edit_service_pool"
+      slots: 2
+      description: "Image Attribute Augmentation internal image-edit service pool"
       includeDeferred: true
 ```
 
-If you intend to run **more than one replica** of the image-edit service, set the pool **`slots`** to match the replica count you pass in the payload. For example, with three replicas:
+If you intend to run **more than one replica** of a model service, set the pool **`slots`** to match the replica count you pass in the payload. For example, with three replicas of the image-edit model service:
 
 **Payload** (`service_lifecycle.image_edit_service.replicas`):
 
@@ -68,16 +68,22 @@ If you intend to run **more than one replica** of the image-edit service, set th
 **Helm values** (`deploy/values.yaml`):
 
 ```yaml
-    - name: "internal_image_edit_service_pool"
+    - name: "iaa_internal_image_edit_service_pool"
       slots: 3
-      description: "Internal image-edit service pool"
+      description: "Image Attribute Augmentation internal image-edit service pool"
       includeDeferred: true
 ```
 
+The full list of model services and their default size can be found below:
+| Service Name | Workflows The Use It | Pool Name | Default Size |
+| --- | --- | --- | --- |
+| Image Edit | Image Attribute Augmentation | `iaa_internal_image_edit_service_pool` | 2 |
+| Image2Video | Event Video Generation | `internal_image2video_service_pool` | 1 |
+
+
 If the pool has fewer slots than replicas, Airflow rate-limits augmentation tasks: extra replicas stay idle because only one task (by default) can hold a pool slot at a time. After editing `deploy/values.yaml`, run `make install sdg-controller` so the updated pool is created in Airflow.
 
-This applies to **internal** image-edit mode only. External augmentation uses **`external_image_edit_service_pool`**, which is sized separately for shared external endpoints.
-
+This applies to **internal** image-edit mode only. External augmentation uses external pools, which are sized separately for shared external endpoints.
 
 
 ## Configure NFS storage

@@ -9,20 +9,39 @@ from typing import Optional
 from pydantic import BaseModel, ConfigDict, Field, model_validator
 
 from dags.shared.models import (
-    AutoLabelingTaskConfig,
     CosmosTaskConfig,
+    ImageAttributeAugmentationTaskConfig,
+    ServiceLifecycleServiceConfig,
     ServiceLifecycleTaskConfig,
 )
 
 logger = logging.getLogger(__name__)
 
+# Placeholders, not real data locations: every run must override them from the payload.
+# They keep this model constructible without arguments so the DAG can render its Param
+# default at parse time.
+DEFAULT_INPUT_PATH = "s3://<your-input-bucket>/<your-workflow>/input"
+DEFAULT_IMAGE_ATTRIBUTE_AUGMENTATION_OUTPUT_DIRECTORY = (
+    "s3://<your-output-bucket>/<your-workflow>/output"
+)
+
+
+class ImageAttributeAugmentationServiceLifecycleConfig(ServiceLifecycleTaskConfig):
+    """Lifecycle settings for services used by Image Attribute Augmentation."""
+
+    image_edit_service: ServiceLifecycleServiceConfig = Field(
+        default_factory=ServiceLifecycleServiceConfig,
+        description="Image-edit service lifecycle settings.",
+    )
+
 
 class ImageAttributeAugmentationDagPayloadConfig(BaseModel):
-    """Runtime payload schema for Image Attribute Augmentation pre-processing DAG."""
+    """Runtime payload schema for the Image Attribute Augmentation preprocessing DAG."""
 
     model_config = ConfigDict(extra="ignore")
 
     input_path: str = Field(
+        default=DEFAULT_INPUT_PATH,
         description=(
             "Storage directory containing PAS image subdirectories; each subdirectory "
             "is one person ID."
@@ -36,6 +55,7 @@ class ImageAttributeAugmentationDagPayloadConfig(BaseModel):
         ),
     )
     output_directory: str = Field(
+        default=DEFAULT_IMAGE_ATTRIBUTE_AUGMENTATION_OUTPUT_DIRECTORY,
         description="Storage output directory for Image Attribute Augmentation preprocessing artifacts.",
     )
     external_services: bool = Field(
@@ -45,18 +65,27 @@ class ImageAttributeAugmentationDagPayloadConfig(BaseModel):
             "are used. When false, internal VLM, LLM, and image-edit services are deployed."
         ),
     )
-    service_lifecycle: ServiceLifecycleTaskConfig = Field(
-        default=ServiceLifecycleTaskConfig(),
+
+    service_lifecycle: ImageAttributeAugmentationServiceLifecycleConfig = Field(
+        default_factory=ImageAttributeAugmentationServiceLifecycleConfig,
         description=(
             "VLM/LLM/image-edit internal deployment flags. Each must be false when "
             "external_services is true, and true when external_services is false."
         ),
     )
     cosmos: CosmosTaskConfig = Field(
+        default=CosmosTaskConfig(),
         description="Cosmos/augmentation task configuration for Image Attribute Augmentation image-edit execution.",
     )
-    auto_labeling: AutoLabelingTaskConfig = Field(
-        description="Auto-labeling task configuration for Image Attribute Augmentation image-edit execution.",
+    event_and_person_attribute_search: ImageAttributeAugmentationTaskConfig = Field(
+        description="Image Attribute Augmentation task configuration.",
+    )
+    enable_performance_reporting: bool = Field(
+        default=False,
+        description=(
+            "Write YAML orchestration statistics and a self-contained graphical HTML "
+            "dashboard after the workflow finishes."
+        ),
     )
 
     @model_validator(mode="before")
@@ -65,20 +94,12 @@ class ImageAttributeAugmentationDagPayloadConfig(BaseModel):
         if not isinstance(data, dict):
             raise ValueError("payload must be a dictionary")
 
-        input_path = data.get("input_path")
-        if input_path is None or (
-            isinstance(input_path, str) and not input_path.strip()
-        ):
-            raise ValueError("input_path is required")
-
-        output_directory = data.get("output_directory")
-        if output_directory is None or (
-            isinstance(output_directory, str) and not output_directory.strip()
-        ):
-            raise ValueError("output_directory is required")
+        output_directory = data.get(
+            "output_directory", DEFAULT_IMAGE_ATTRIBUTE_AUGMENTATION_OUTPUT_DIRECTORY
+        )
         external_services = bool(data.get("external_services", True))
         deploy_internal = not external_services
-        for field_name in ("cosmos", "auto_labeling"):
+        for field_name in ("cosmos", "event_and_person_attribute_search"):
             nested_cfg = data.get(field_name)
             if nested_cfg is None:
                 data[field_name] = {
@@ -163,15 +184,10 @@ class ImageAttributeAugmentationDagPayloadConfig(BaseModel):
                     "cosmos.image_edit_service_url is required when "
                     "cosmos.external_services is true"
                 )
-        if self.auto_labeling.external_services:
-            if not self.auto_labeling.vlm_service_url:
+        if self.event_and_person_attribute_search.external_services:
+            if not self.event_and_person_attribute_search.llm_service_url:
                 raise ValueError(
-                    "auto_labeling.vlm_service_url is required when "
-                    "auto_labeling.external_services is true"
-                )
-            if not self.auto_labeling.llm_service_url:
-                raise ValueError(
-                    "auto_labeling.llm_service_url is required when "
-                    "auto_labeling.external_services is true"
+                    "event_and_person_attribute_search.llm_service_url is required when "
+                    "event_and_person_attribute_search.external_services is true"
                 )
         return self

@@ -19,6 +19,7 @@ Verify the installation of the following CLI tools before proceeding. These tool
 | **uv** | **0.11.21+** | https://docs.astral.sh/uv/getting-started/installation/ | Verify installation by running `uv --version` |
 | **docker** | **29.6.0+** | https://docs.docker.com/engine/install/ubuntu/ | Verify installation by running `docker --version` |
 | **aws** | **2.x** | https://docs.aws.amazon.com/cli/latest/userguide/getting-started-install.html | Verify installation by running `aws --version` |
+| **CUDA** | **13.x.x** | https://docs.nvidia.com/cuda/cuda-installation-guide-linux/ | Verify installation by checking the version from `nvidia-smi` |
 
 ### Kubernetes cluster
 
@@ -28,7 +29,11 @@ PAIDF Orchestration is a helm chart that is deployed on a Kubernetes cluster. Be
 
 2. **Storage**: Default Helm values expect a **`nfs`** StorageClass for PostgreSQL, DAG, plugin, dependency, and model-cache PVCs. If your cluster does not already provide one, run `make install nfs` first. If you use a different `ReadWriteMany` StorageClass, set `storageClassName` in `deploy/values.yaml`. See [Configure NFS storage](advanced-usage.md#configure-nfs-storage) for more details.
 
-3. **GPUs**: GPUs are required to run the Image Attribute Augmentation DAG. The cluster need the [NVIDIA GPU Operator](https://docs.nvidia.com/datacenter/cloud-native/gpu-operator/latest/overview.html) (or equivalent) so pods can request `nvidia.com/gpu`. A minimum of 8x H100-class (NVIDIA Hopper) RTX6000 PRO or B200-class (NVIDIA Blackwell) GPUs are recommended for the quickstart workflow to complete successfully.
+3. **GPUs**: GPU requirements depend on the workflow and service mode. Install the [NVIDIA GPU Operator](https://docs.nvidia.com/datacenter/cloud-native/gpu-operator/latest/overview.html) (or equivalent) whenever the selected workflow requests `nvidia.com/gpu`:
+   - **Image Attribute Augmentation:** Internal services deploy one GPU each for the VLM, LLM, and image-edit endpoints (three GPUs for one replica of each). As such, at least 3 GPUs are needed when running Image Attribute Augmentation with internal services.
+   - **Event Video Generation:** Internal services reserve one GPU each for the VLM and LLM plus two for image-to-video (four GPUs total, assuming one replica of each service). Additional GPUs are needed for augmentation and auto-labeling.
+
+   8 GPUs are recommended to ensure success for all workflows, but can be decreased depending on the target workflow. Check the workflow-specific guides and free-versus-total cluster capacity before starting a run.
 
 ### S3 buckets and credentials
 
@@ -67,7 +72,7 @@ Once the secrets are ready, set them up in the repo using the following steps:
 3. **Update secrets.env with your secrets**: Add your secret values to the ENV variables in secrets.env
 
 
-## Run The Workflow
+## Start Airflow and Run Workflows
 
 1. **Run setup**:
 
@@ -115,88 +120,41 @@ Once the secrets are ready, set them up in the repo using the following steps:
 
    > Note: Change default credentials before any production use.
 
-5. **Construct and Upload Input Data**:
+5. **Choose a Workflow**
 
-   The Image Attribute Augmentation workflow requires a user-provided image dataset in S3. Build a local
-   dataset with one folder per person ID, then upload that folder tree to the
-   input location in S3 expected by the starter payloads:
+   Select the workflow that matches your data-generation goal, then follow its
+   dedicated guide for input preparation, payload authoring, and execution.
 
-   ```text
-   input_data/
-      person-0001/
-         0001-front.jpg
-         0001-side.jpg
-      person-0002/
-         0002-front.png
-   ```
+   | Workflow | Purpose | Getting Started Guide |
+   | --- | --- | --- |
+   | Image Attribute Augmentation | Generate clothing-attribute variations for person images. | [Open guide](image-attribute-augmentation/getting-started.md) |
+   | Event Video Generation | Generate and auto-label anomaly videos from source images. | [Open guide](event-video-generation/getting-started.md) |
 
-   Input data is expected to be images of people for the Image Attribute Augmentation workflow. Input data may be taken from https://github.com/NjtechCVLab/RSTPReid-Dataset or similar open source dataset if you do not have input images available.
+## Uninstall the Helm Chart
 
-6. **Create a Starter Payload**
+To uninstall the PAIDF Orchestration helm chart, run:
 
-   Before triggering the workflow, a payload is needed to give the workflow the following information:
-      - Where on S3 the input images can be found
-      - Where on S3 the output dataset should be uploaded
-      - Whether to use external endpoints for VLM, LLM, or image edit, or to create these endpoint internally
-      - How many augmentations should be performed per image
-      - What attributes should be present in the augmented output, and in what distribution
-      - Various other configurations
+```bash
+make uninstall
+```
 
-   To get started quickly, copy the payload from `payload/single-image-aug-w-internal-endpoint.json`, then set:
-
-   - `input_path` to `s3://<your-input-bucket>/<your-workflow>/input`
-   - `output_directory` to your desired output path, for example `s3://<your-output-bucket>/<your-workflow>/output`
-
-   The [Payload Guide](payload-guide.md) may be followed for detailed instructions on setting up the payload.
-
-7. **Start the Workflow from the UI**:
-
-   > Note: Only run one workflow at a time to avoid long queueing times or unexpected issues
-
-   1. Starting from the Airflow home page, select `Dags` in the left side bar.
-   2. Select `image_attribute_augmentation_dag_k8s` from the list that appears.
-   3. Click the `trigger` button in the top right corner of the page that appears.
-   4. Under `Run Parameters`, update ImageAttributeAugmentationDagPayloadConfig with the payload from step 6. Leave other fields as their default values.
-   5. Start the run by pressing the `Trigger` button.
-
-8. **Monitor or Stop an Active Run**:
-
-   The workflow progress can be monitored in the Airflow UI.
-
-   If you need to cancel a run that is already in progress:
-
-   1. Open the active DagRun in the Airflow UI (**Grid** or **Graph** view).
-   2. Find the task that is currently **running**.
-   3. Mark that task as **failed** (task menu → **Mark Failed**).
-
-   That stops the run and lets the DAG execute **service shutdown**, which performs the proper cleanup of all the resource created by the currently DAG run.
-
-   **Do not delete the DagRun or the DAG** from the UI to stop work in progress. Deleting a run bypasses the normal shutdown path and can leave stale Deployments, Services, or GPU pods on the cluster. Always prefer **Mark Failed** on the running task so cleanup runs and the next run starts fresh.
-
-9. **Inspect the Workflow Output**:
-
-   After the workflow is complete, all results will appear in the output S3 bucket in the path specified by the `output_directory` field in the payload. Output will be created in a new directory named after the Airflow DAG Run ID, which can be found in the Airflow UI after the DAG is triggered.
-
-10. **Uninstall the Helm Chart**:
-
-   To uninstall the PAIDF Orchestration helm chart, run
-
-   ```bash
-   make uninstall
-   ```
-
-   > Note: On uninstall, **PVCs are preserved**
-   >
-   > To delete all persistent data:
-   > ```bash
-   > kubectl delete pvc --all -n sdg-workflow
-   > ```
-   > This will delete the past history of DAG runs, model caches, and other data.
+> Note: On uninstall, **PVCs are preserved**.
+>
+> To delete all persistent data:
+> ```bash
+> kubectl delete pvc --all -n sdg-workflow
+> ```
+> This deletes the history of DAG runs, model caches, and other data.
 
 
 ## Next Steps
 
-Visit the [Image Attribute Augmentation Payload Guide](payload-guide.md) for runtime payload authoring, and [Advanced Usage](advanced-usage.md) for deployment customization.
+Author a runtime payload for your chosen workflow:
+
+- [Image Attribute Augmentation payload guide](image-attribute-augmentation/payload-guide.md)
+- [Event Video Generation payload guide](event-video-generation/payload-guide.md)
+
+See [Advanced Usage](advanced-usage.md) for deployment customization.
 
 ## Appendix
 

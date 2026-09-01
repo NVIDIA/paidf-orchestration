@@ -1,7 +1,7 @@
 # SPDX-FileCopyrightText: Copyright (c) 2026 NVIDIA CORPORATION & AFFILIATES. All rights reserved.
 # SPDX-License-Identifier: Apache-2.0
 
-"""Input preparation callable for Image Attribute Augmentation DAG."""
+"""Input preparation callable for the Image Attribute Augmentation DAG."""
 
 import ast
 from pathlib import Path
@@ -11,9 +11,13 @@ from airflow.exceptions import AirflowFailException
 
 from dags.shared.models import InputPreparationResult
 from dags.shared.utils.video_input_utils import join_storage_base_path_filename
-from dags.workflows.image_attribute_augmentation_dag.models import ImageAttributeAugmentationDagPayloadConfig
+from dags.workflows.image_attribute_augmentation_dag.models import (
+    ImageAttributeAugmentationDagPayloadConfig,
+)
 from dags.workflows.image_attribute_augmentation_dag.utils import IMAGE_EXTENSIONS
-from dags.workflows.image_attribute_augmentation_dag.utils import combine_panes as combine_panes_helper
+from dags.workflows.image_attribute_augmentation_dag.utils import (
+    combine_panes as combine_panes_helper,
+)
 
 
 def prepare_image_attribute_augmentation_input(
@@ -23,7 +27,9 @@ def prepare_image_attribute_augmentation_input(
 ) -> dict[str, Any]:
     """Combine Image Attribute Augmentation panes and return prepared image paths for downstream Cosmos tasks."""
     try:
-        config = ImageAttributeAugmentationDagPayloadConfig.model_validate(ast.literal_eval(payload))
+        config = ImageAttributeAugmentationDagPayloadConfig.model_validate(
+            ast.literal_eval(payload)
+        )
         run_base = Path("/tmp/image_attribute_augmentation_preprocess_runs") / f"{run_id}"
         run_base.mkdir(parents=True, exist_ok=True)
 

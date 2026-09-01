@@ -1,0 +1,18 @@
+enabled: true
+dataset: upa
+tracks_sidecars:
+  - detection_and_tracking/tracks.json
+visual_qa_item_sidecars:
+  - visual_qa_per_track/items.json
+visual_qa_window_sidecars:
+  - visual_qa_per_track/windows.normalized.json
+video_captions_sidecars:
+  - captioning/video_captions.json
+anomaly_items_sidecars:
+  - visual_qa_anomaly/items.json
+llm_query_generation: true
+use_template_for_medium: false
+bundle_query_generation: false
+bucket_query_generation: true
+emit_contextual: true
+emit_daft_contextual: true

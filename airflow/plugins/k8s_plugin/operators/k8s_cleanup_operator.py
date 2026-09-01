@@ -12,6 +12,8 @@ from airflow.providers.cncf.kubernetes.hooks.kubernetes import KubernetesHook
 from airflow.sdk import BaseOperator
 from kubernetes import client
 
+from k8s_plugin.connection import resolve_kubernetes_backend
+
 
 class K8sCleanupOperator(BaseOperator):
     """
@@ -22,7 +24,7 @@ class K8sCleanupOperator(BaseOperator):
     cleanup even when upstream tasks fail.
     """
 
-    template_fields = ["function_id", "function_version_id", "namespace"]
+    template_fields = ["function_id", "function_version_id", "namespace", "context"]
 
     def __init__(
         self,
@@ -31,6 +33,7 @@ class K8sCleanupOperator(BaseOperator):
         function_version_id: Optional[str] = None,
         namespace: str = "default",
         kubernetes_conn_id: Optional[str] = None,
+        context: Optional[str] = None,
         in_cluster: Optional[bool] = None,
         # Absorbed silently -- NVCF-specific fields from manifest
         nvcf_conn_id: Optional[str] = None,
@@ -42,18 +45,27 @@ class K8sCleanupOperator(BaseOperator):
         self.function_id = function_id
         self.function_version_id = function_version_id
         self.namespace = namespace
-        self.kubernetes_conn_id = kubernetes_conn_id
+        self.context = context
+        self.kubernetes_conn_id, self.cluster_context = resolve_kubernetes_backend(
+            context=context,
+            kubernetes_conn_id=kubernetes_conn_id,
+            in_cluster=in_cluster,
+        )
         self.in_cluster = in_cluster
 
     def execute(self, context: Dict[str, Any]) -> Dict[str, Any]:
         resource_name = self.function_id
         if not resource_name or resource_name == "None":
             self.log.info("No resource name provided, skipping cleanup.")
+            # Unblock deferred deploy/slot-hold tasks watching this cleanup task.
+            context["ti"].xcom_push(key="function_id", value="")
             return {"skipped": True}
 
         hook_kwargs = {}
-        if self.kubernetes_conn_id and self.in_cluster is not True:
+        if self.kubernetes_conn_id:
             hook_kwargs["conn_id"] = self.kubernetes_conn_id
+        if self.cluster_context:
+            hook_kwargs["cluster_context"] = self.cluster_context
         if self.in_cluster is not None:
             hook_kwargs["in_cluster"] = self.in_cluster
         hook = KubernetesHook(**hook_kwargs)

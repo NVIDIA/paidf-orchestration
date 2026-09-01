@@ -3,6 +3,9 @@
 # This manifest targets a remote Kubernetes cluster with H100 or L40S GPU(s).
 # It uses kubernetes_conn_id to connect to the remote cluster instead of
 # the local in-cluster config.
+#
+# Optional: set `context: <name>` to select a named context from k8sCtx
+# (kubectl config). If omitted, kubeconfig current-context is used.
 
 version: 0.0.1
 
@@ -10,6 +13,18 @@ deployment:
   dag_timeout: 172800 # 2 days
 
   profiles:
+    k8s_cpu_task:
+      operator: K8sTaskOperator
+      pool: default_pool
+      pool_slots: 1
+      configuration:
+        namespace: sdg-workflow
+        kubernetes_conn_id: kubernetes_remote
+        in_cluster: false
+        startup_timeout_seconds: 900
+        image_pull_secrets:
+          - ngc-docker-registry-secret
+
     k8s_gpu_endpoint:
       operator: K8sServiceOperator
       cleanup_operator: K8sCleanupOperator
@@ -43,7 +58,7 @@ deployment:
 
     augmentation_task:
       operator: K8sTaskOperator
-      pool: external_image_edit_service_pool
+      pool: iaa_internal_image_edit_service_pool
       pool_slots: 1
       configuration:
         namespace: sdg-workflow
@@ -114,21 +129,17 @@ deployment:
           HF_TOKEN: "{{ var.value.hf_token }}"
 
     tasks:
-      auto_labeling:
-        container_image: nvcr.io/nvidia/paidf-auto-labeling:1.0.0
-        deployment_profile: k8s_gpu_task
-        environment:
-          DOWNLOAD_CKPTS: "none"
-          DOWNLOAD_REID: "false"
+      event_and_person_attribute_search:
+        container_image: nvcr.io/nvidia/paidf-event-and-person-attribute-search-service:1.1.0
+        deployment_profile: k8s_cpu_task
         secrets:
           MULTISTORAGECLIENT_CONFIGURATION: "{{ var.value.multistorageclient_configuration_secret }}"
           NVIDIA_API_KEY: "{{ conn.nvcf_default.password }}"
         configuration:
           retries: 3
-          container_command: "bash -c 'exec uv run python modules/cli.py \"$@\"' _"
 
       augmentation:
-        container_image: nvcr.io/nvidia/paidf-augmentation:1.0.1
+        container_image: nvcr.io/nvidia/paidf-augmentation:1.1.0
         deployment_profile: augmentation_task
         environment:
           UV_LINK_MODE: copy
@@ -141,4 +152,13 @@ deployment:
           IMAGE_EDIT_API_KEY: "{{ conn.nvcf_default.password }}"
         configuration:
           retries: 3
-          container_command: "bash -c 'exec uv run python /app/modules/cli.py \"$@\"' _"
+
+      cosmos_post_processing:
+        container_image: nvcr.io/nvidia/paidf-augmentation:1.1.0
+        deployment_profile: k8s_cpu_task
+        secrets:
+          MULTISTORAGECLIENT_CONFIGURATION: "{{ var.value.multistorageclient_configuration_secret }}"
+          VLM_API_KEY: "{{ conn.nvcf_default.password }}"
+        configuration:
+          retries: 3
+          container_command: "bash -c 'cd /workspace && exec uv \"$@\"' _"
