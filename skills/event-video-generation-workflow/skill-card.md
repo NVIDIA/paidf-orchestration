@@ -1,5 +1,5 @@
 ## Description: <br>
-Run the PAIDF Orchestration Event Video Generation DAG on Kubernetes — image-to-video anomaly generation, auto-labeling, and anomaly dataset generation. <br>
+Run the PAIDF Orchestration Event Video Generation DAG end to end: seed-image input preparation, Cosmos3 image-to-video anomaly augmentation, auto-labeling, anomaly dataset generation, and result retrieval. <br>
 
 This skill is ready for commercial/non-commercial use. <br>
 
@@ -9,14 +9,14 @@ NVIDIA <br>
 ### License/Terms of Use: <br>
 Apache 2.0 <br>
 ## Use Case: <br>
-Developers and engineers generating synthetic anomaly video datasets for physical AI safety and surveillance use cases, using seed images and Cosmos3 image-to-video synthesis with automated labeling. <br>
+Developers and engineers use this skill to run event video generation workflows on Kubernetes for synthetic data generation of anomaly videos for physical AI use cases such as safety and surveillance. <br>
 
 ### Deployment Geography for Use: <br>
 Global <br>
 
 ## Requirements / Dependencies: <br>
 **Requires API Key or External Credential:** [Yes] <br>
-**Credential Type(s):** [API key, Cloud Credentials] <br>
+**Credential Type(s):** [Cloud Credentials, API key] <br>
 
 Do not include secrets in prompts/logs/output; use least-privilege credentials; rotate keys as appropriate. <br>
 
@@ -25,16 +25,16 @@ Risk: Review before execution as proposals could introduce incorrect or misleadi
 Mitigation: Review and scan skill before deployment. <br>
 
 ## Reference(s): <br>
-- [Airflow Direct API](references/airflow-direct-api.md) <br>
-- [Outputs](references/outputs.md) <br>
-- [Payload Contract](references/payload-contract.md) <br>
-- [Setup and Preflight](references/setup-and-preflight.md) <br>
-- [Troubleshooting](references/troubleshooting.md) <br>
+- [airflow-direct-api.md](references/airflow-direct-api.md) <br>
+- [outputs.md](references/outputs.md) <br>
+- [payload-contract.md](references/payload-contract.md) <br>
+- [setup-and-preflight.md](references/setup-and-preflight.md) <br>
+- [troubleshooting.md](references/troubleshooting.md) <br>
 
 
 ## Skill Output: <br>
-**Output Type(s):** [Shell commands, API Calls, Files] <br>
-**Output Format:** [Markdown with inline bash code blocks and JSON payloads] <br>
+**Output Type(s):** [Shell commands, Configuration instructions, Analysis] <br>
+**Output Format:** [Markdown with inline bash code blocks] <br>
 **Output Parameters:** [1D] <br>
 **Other Properties Related to Output:** [None] <br>
 
@@ -45,35 +45,35 @@ Mitigation: Review and scan skill before deployment. <br>
 
 
 ## Evaluation Tasks: <br>
-14 evaluation tasks (12 positive, 2 negative) run in isolated sandbox pods. <br>
+14 evaluation tasks (12 positive, 2 negative), each run in an isolated sandbox pod. <br>
 
 ## Evaluation Metrics Used: <br>
 Reported benchmark dimensions: <br>
-- Security: Whether the skill avoids unsafe operations, secret leakage, and unauthorized access. <br>
-- Correctness: Final-answer correctness against the reference answer. <br>
-- Discoverability: Whether the expected skill was found and executed when needed. <br>
-- Effectiveness: Whether the skill helped complete the user's goal and followed expected workflow behavior. <br>
-- Efficiency: Routing quality, workspace-aware skill reads, and productive tool use. <br>
+- Security: Checks for unsafe operations, secret leakage, and unauthorized access. <br>
+- Correctness: Checks final-answer correctness against the reference answer. <br>
+- Discoverability: Checks whether the expected skill was found and executed. <br>
+- Effectiveness: Checks whether the user's goal was achieved and expected workflow behavior was followed. <br>
+- Efficiency: Checks routing quality, workspace-aware skill reads, and productive tool use. <br>
 
 Underlying evaluation signals used in this run: <br>
-- `security`: Checks for unsafe operations, secret leakage, and unauthorized access. <br>
-- `skill_execution`: Whether the expected skill was found and executed. <br>
-- `skill_efficiency`: Routing quality, workspace-aware skill reads, and productive tool use. <br>
-- `accuracy`: Final-answer correctness against the reference answer. <br>
-- `goal_accuracy`: Whether the user's goal was achieved. <br>
-- `behavior_check`: Whether the expected workflow behavior was followed. <br>
+- `security`: Verifies absence of unsafe operations, secret leakage, and unauthorized access. <br>
+- `skill_execution`: Verifies the expected skill was found and executed. <br>
+- `skill_efficiency`: Verifies routing quality, workspace-aware skill reads, and productive tool use. <br>
+- `accuracy`: Verifies final-answer correctness against the reference answer. <br>
+- `goal_accuracy`: Verifies whether the user's goal was achieved. <br>
+- `behavior_check`: Verifies whether the expected workflow behavior was followed. <br>
 
 
 
 ## Evaluation Results: <br>
 | Measure | Claude Code (Baseline → Skill Uplift) | Codex (Baseline → Skill Uplift) |
 |---|---:|---:|
-| Overall | 45% → 89% (+45 points) | 44% → 91% (+47 points) |
-| Security | 64% → 100% (+36 points) | 79% → 100% (+21 points) |
-| Correctness | 39% → 99% (+60 points) | 31% → 94% (+63 points) |
-| Discoverability | 40% → 84% (+44 points) | 31% → 85% (+54 points) |
-| Effectiveness | 43% → 79% (+36 points) | 38% → 77% (+39 points) |
-| Efficiency | 38% → 85% (+48 points) | 43% → 98% (+55 points) |
+| Overall | 48% → 87% (+39 points) | 46% → 83% (+37 points) |
+| Security | 79% → 100% (+21 points) | 82% → 89% (+7 points) |
+| Correctness | 36% → 93% (+57 points) | 33% → 83% (+50 points) |
+| Discoverability | 41% → 84% (+43 points) | 33% → 83% (+50 points) |
+| Effectiveness | 49% → 77% (+29 points) | 43% → 72% (+29 points) |
+| Efficiency | 38% → 81% (+43 points) | 40% → 88% (+47 points) |
 
 ## Skill Version(s): <br>
 1.1.0 (source: pyproject.toml) <br>

@@ -9,7 +9,7 @@ Recommended for publication based on the completed evaluation evidence in this r
 ## Evaluation Metadata
 
 - Skill: `orchestration-setup`
-- Evaluation date: 2026-08-27
+- Evaluation date: 2026-09-01
 - Evaluator version: `1.3.2`
 - Agents: Claude Code (`aws/anthropic/bedrock-claude-opus-4-8`), Codex (`openai/openai/gpt-5.5`)
 - Tasks: 10 evaluation tasks (10 positive)
@@ -25,8 +25,9 @@ Each task attempt ran in its own isolated sandbox pod.
 - Validation status: `passed`
 - Report generation: `complete`
 - Evaluator version: `1.3.2`
-- Git commit: `64be1471c5fd4364d27cf503eb8218cb86f36ee2`
+- Git commit: `fed6620cbc44a5e8d7e78ab0dd044258b667efc7`
 - Content type: requested `auto`, detected `skill`
+- Container image: `gitlab-master.nvidia.com:5005/nvcarps/ci-group/nvcarps-ci/skillevaluator-ci:sha-fed6620cbc44a5e8d7e78ab0dd044258b667efc7`
 - Container image digest: `not recorded`
 - Tier 3: requested `true`, executed `true`, status `succeeded`
 
@@ -44,12 +45,12 @@ The three-tier evaluation checks whether the skill:
 
 | Measure | Claude Code (Baseline → Skill Uplift) | Codex (Baseline → Skill Uplift) |
 |---|---:|---:|
-| Overall | 64% → 93% (+28 points) | 59% → 68% (+8 points) |
-| Security | 90% → 90% (±0 points) | 70% → 80% (+10 points) |
+| Overall | 62% → 93% (+31 points) | 61% → 64% (+3 points) |
+| Security | 80% → 90% (+10 points) | 80% → 80% (±0 points) |
 | Correctness | 100% → 100% (±0 points) | 100% → 100% (±0 points) |
-| Discoverability | 42% → 95% (+52 points) | 39% → 54% (+14 points) |
-| Effectiveness | 70% → 89% (+20 points) | 69% → 72% (+4 points) |
-| Efficiency | 19% → 89% (+69 points) | 18% → 32% (+14 points) |
+| Discoverability | 37% → 94% (+57 points) | 39% → 41% (+2 points) |
+| Effectiveness | 68% → 89% (+22 points) | 70% → 72% (+2 points) |
+| Efficiency | 24% → 93% (+68 points) | 18% → 29% (+11 points) |
 
 **How to read this table:** baseline is the same task attempted without the target skill. Uplift is `skill score - baseline score`, shown in percentage points.
 

@@ -31,7 +31,7 @@ Output is:
 **Kubernetes only.** This repository's `main`/current branches check in K8s manifests only (see
 `image-attribute-augmentation-workflow` and `event-video-generation-workflow` skills) — no NVCF, no
 OSMO. Do not offer those backends unless the user explicitly says their environment supports them,
-and if so, treat it as new scope requiring its own investigation, not a flag on this skill.
+and if so, treat it as new scope requiring its own investigation rather than a flag on this skill.
 
 **Not scoped to one workflow.** Task groups are shared across IAA and EVG today; a custom DAG can
 mix stages from either lineage (e.g. `CosmosTaskGroup` + `AutoLabelingTaskGroup` with no
