@@ -9,7 +9,7 @@ NVIDIA <br>
 ### License/Terms of Use: <br>
 Apache 2.0 <br>
 ## Use Case: <br>
-Developers and infrastructure engineers who need to audit, prepare, and deploy PAIDF Orchestration environments on Kubernetes GPU clusters for synthetic data generation workflows. <br>
+Developers and engineers setting up, auditing, and deploying PAIDF Orchestration environments on Kubernetes GPU clusters for synthetic data generation workflows. <br>
 
 ### Deployment Geography for Use: <br>
 Global <br>
@@ -25,8 +25,8 @@ Risk: Review before execution as proposals could introduce incorrect or misleadi
 Mitigation: Review and scan skill before deployment. <br>
 
 ## Reference(s): <br>
-- [Topologies Reference](references/topologies.md) <br>
-- [Controller Connection Reference](references/controller-connection.md) <br>
+- [SDG Controller Connection](references/controller-connection.md) <br>
+- [Remote Setup Topologies](references/topologies.md) <br>
 
 
 ## Skill Output: <br>
@@ -42,35 +42,35 @@ Mitigation: Review and scan skill before deployment. <br>
 
 
 ## Evaluation Tasks: <br>
-10 evaluation tasks (10 positive) in isolated k8s-sandbox pods. <br>
+10 evaluation tasks (10 positive) executed in isolated sandbox pods. <br>
 
 ## Evaluation Metrics Used: <br>
 Reported benchmark dimensions: <br>
-- Security: Checks for unsafe operations, secret leakage, and unauthorized access. <br>
-- Correctness: Checks final-answer correctness against reference answers. <br>
-- Discoverability: Checks whether the expected skill was found and executed when needed. <br>
-- Effectiveness: Checks goal completion and expected workflow adherence. <br>
-- Efficiency: Checks routing quality, workspace-aware skill reads, and productive tool use. <br>
+- Security: Checks whether the skill is safe to use. <br>
+- Correctness: Checks whether the answer is correct. <br>
+- Discoverability: Checks whether the right skill was loaded when needed. <br>
+- Effectiveness: Checks whether the skill helped complete the user's goal and expected workflow. <br>
+- Efficiency: Checks whether the skill avoided wasted tool or skill usage. <br>
 
 Underlying evaluation signals used in this run: <br>
-- `security`: Unsafe operations, secret leakage, and unauthorized access. <br>
-- `accuracy`: Final-answer correctness against the reference answer. <br>
-- `skill_execution`: Whether the expected skill was found and executed. <br>
-- `goal_accuracy`: Whether the user's goal was achieved. <br>
-- `behavior_check`: Whether the expected workflow behavior was followed. <br>
-- `skill_efficiency`: Routing quality, workspace-aware skill reads, and productive tool use. <br>
+- `security`: Verifies absence of unsafe operations, secret leakage, and unauthorized access. <br>
+- `accuracy`: Verifies final-answer correctness against the reference answer. <br>
+- `skill_execution`: Verifies the expected skill was found and executed. <br>
+- `goal_accuracy`: Measures whether the user's goal was achieved. <br>
+- `behavior_check`: Verifies the expected workflow behavior was followed. <br>
+- `skill_efficiency`: Measures routing quality, workspace-aware skill reads, and productive tool use. <br>
 
 
 
 ## Evaluation Results: <br>
 | Measure | Claude Code (Baseline → Skill Uplift) | Codex (Baseline → Skill Uplift) |
 |---|---:|---:|
-| Overall | 64% → 93% (+28 points) | 59% → 68% (+8 points) |
-| Security | 90% → 90% (±0 points) | 70% → 80% (+10 points) |
+| Overall | 62% → 93% (+31 points) | 61% → 64% (+3 points) |
+| Security | 80% → 90% (+10 points) | 80% → 80% (±0 points) |
 | Correctness | 100% → 100% (±0 points) | 100% → 100% (±0 points) |
-| Discoverability | 42% → 95% (+52 points) | 39% → 54% (+14 points) |
-| Effectiveness | 70% → 89% (+20 points) | 69% → 72% (+4 points) |
-| Efficiency | 19% → 89% (+69 points) | 18% → 32% (+14 points) |
+| Discoverability | 37% → 94% (+57 points) | 39% → 41% (+2 points) |
+| Effectiveness | 68% → 89% (+22 points) | 70% → 72% (+2 points) |
+| Efficiency | 24% → 93% (+68 points) | 18% → 29% (+11 points) |
 
 ## Skill Version(s): <br>
 1.1.0 (source: pyproject.toml) <br>

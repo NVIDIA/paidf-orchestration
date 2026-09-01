@@ -9,7 +9,7 @@ Recommended for publication based on the completed evaluation evidence in this r
 ## Evaluation Metadata
 
 - Skill: `write-dag`
-- Evaluation date: 2026-08-27
+- Evaluation date: 2026-09-01
 - Evaluator version: `1.3.2`
 - Agents: Claude Code (`aws/anthropic/bedrock-claude-opus-4-8`), Codex (`openai/openai/gpt-5.5`)
 - Tasks: 7 evaluation tasks (7 positive)
@@ -25,8 +25,9 @@ Each task attempt ran in its own isolated sandbox pod.
 - Validation status: `passed`
 - Report generation: `complete`
 - Evaluator version: `1.3.2`
-- Git commit: `64be1471c5fd4364d27cf503eb8218cb86f36ee2`
+- Git commit: `fed6620cbc44a5e8d7e78ab0dd044258b667efc7`
 - Content type: requested `auto`, detected `skill`
+- Container image: `gitlab-master.nvidia.com:5005/nvcarps/ci-group/nvcarps-ci/skillevaluator-ci:sha-fed6620cbc44a5e8d7e78ab0dd044258b667efc7`
 - Container image digest: `not recorded`
 - Tier 3: requested `true`, executed `true`, status `succeeded`
 
@@ -44,12 +45,12 @@ The three-tier evaluation checks whether the skill:
 
 | Measure | Claude Code (Baseline → Skill Uplift) | Codex (Baseline → Skill Uplift) |
 |---|---:|---:|
-| Overall | 37% → 87% (+50 points) | 37% → 79% (+42 points) |
-| Security | 57% → 100% (+43 points) | 71% → 71% (±0 points) |
-| Correctness | 37% → 94% (+57 points) | 34% → 91% (+57 points) |
-| Discoverability | 49% → 98% (+49 points) | 31% → 74% (+43 points) |
-| Effectiveness | 19% → 62% (+43 points) | 15% → 67% (+52 points) |
-| Efficiency | 22% → 81% (+60 points) | 33% → 93% (+59 points) |
+| Overall | 39% → 85% (+46 points) | 38% → 71% (+33 points) |
+| Security | 71% → 100% (+29 points) | 71% → 50% (-21 points) |
+| Correctness | 37% → 89% (+51 points) | 34% → 89% (+54 points) |
+| Discoverability | 50% → 98% (+48 points) | 37% → 74% (+38 points) |
+| Effectiveness | 12% → 56% (+43 points) | 11% → 53% (+42 points) |
+| Efficiency | 24% → 84% (+59 points) | 39% → 91% (+52 points) |
 
 **How to read this table:** baseline is the same task attempted without the target skill. Uplift is `skill score - baseline score`, shown in percentage points.
 

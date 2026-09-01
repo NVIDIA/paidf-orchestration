@@ -9,7 +9,7 @@ Recommended for publication based on the completed evaluation evidence in this r
 ## Evaluation Metadata
 
 - Skill: `event-video-generation-workflow`
-- Evaluation date: 2026-08-27
+- Evaluation date: 2026-09-01
 - Evaluator version: `1.3.2`
 - Agents: Claude Code (`aws/anthropic/bedrock-claude-opus-4-8`), Codex (`openai/openai/gpt-5.5`)
 - Tasks: 14 evaluation tasks (12 positive, 2 negative)
@@ -25,8 +25,9 @@ Each task attempt ran in its own isolated sandbox pod.
 - Validation status: `passed`
 - Report generation: `complete`
 - Evaluator version: `1.3.2`
-- Git commit: `64be1471c5fd4364d27cf503eb8218cb86f36ee2`
+- Git commit: `fed6620cbc44a5e8d7e78ab0dd044258b667efc7`
 - Content type: requested `auto`, detected `skill`
+- Container image: `gitlab-master.nvidia.com:5005/nvcarps/ci-group/nvcarps-ci/skillevaluator-ci:sha-fed6620cbc44a5e8d7e78ab0dd044258b667efc7`
 - Container image digest: `not recorded`
 - Tier 3: requested `true`, executed `true`, status `succeeded`
 
@@ -44,12 +45,12 @@ The three-tier evaluation checks whether the skill:
 
 | Measure | Claude Code (Baseline → Skill Uplift) | Codex (Baseline → Skill Uplift) |
 |---|---:|---:|
-| Overall | 45% → 89% (+45 points) | 44% → 91% (+47 points) |
-| Security | 64% → 100% (+36 points) | 79% → 100% (+21 points) |
-| Correctness | 39% → 99% (+60 points) | 31% → 94% (+63 points) |
-| Discoverability | 40% → 84% (+44 points) | 31% → 85% (+54 points) |
-| Effectiveness | 43% → 79% (+36 points) | 38% → 77% (+39 points) |
-| Efficiency | 38% → 85% (+48 points) | 43% → 98% (+55 points) |
+| Overall | 48% → 87% (+39 points) | 46% → 83% (+37 points) |
+| Security | 79% → 100% (+21 points) | 82% → 89% (+7 points) |
+| Correctness | 36% → 93% (+57 points) | 33% → 83% (+50 points) |
+| Discoverability | 41% → 84% (+43 points) | 33% → 83% (+50 points) |
+| Effectiveness | 49% → 77% (+29 points) | 43% → 72% (+29 points) |
+| Efficiency | 38% → 81% (+43 points) | 40% → 88% (+47 points) |
 
 **How to read this table:** baseline is the same task attempted without the target skill. Uplift is `skill score - baseline score`, shown in percentage points.
 

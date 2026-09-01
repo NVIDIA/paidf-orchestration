@@ -1,5 +1,5 @@
 ## Description: <br>
-Composes a new Kubernetes-only Airflow DAG from existing shared task groups when a user describes a custom PAIDF Orchestration pipeline that no existing DAG covers, and verifies that generated or existing DAG configurations match an external spec document. <br>
+Composes a new Kubernetes-only Airflow DAG from existing shared task groups in the PAIDF Orchestration repository, producing a K8s manifest, DAG builder, payload model, and workflow-local callables for custom synthetic data generation pipelines. <br>
 
 This skill is ready for commercial/non-commercial use. <br>
 
@@ -9,7 +9,7 @@ NVIDIA <br>
 ### License/Terms of Use: <br>
 Apache 2.0 <br>
 ## Use Case: <br>
-Developers and engineers who need to create custom Kubernetes Airflow DAGs for PAIDF Orchestration pipelines combining specific ordered stages (augmentation, auto-labeling, detection, captioning, visual QA) that are not covered by existing checked-in workflows. <br>
+Developers and engineers building custom PAIDF Orchestration pipelines use this skill to compose new Kubernetes-only Airflow DAGs from shared task groups when no existing DAG covers the requested stage sequence. <br>
 
 ### Deployment Geography for Use: <br>
 Global <br>
@@ -29,8 +29,8 @@ Mitigation: Review and scan skill before deployment. <br>
 
 
 ## Skill Output: <br>
-**Output Type(s):** [Code, Files, Configuration instructions, Shell commands] <br>
-**Output Format:** [Python source files and YAML configuration] <br>
+**Output Type(s):** [Code, Configuration files, Shell commands] <br>
+**Output Format:** [Python files, YAML manifests, and Markdown summaries] <br>
 **Output Parameters:** [1D] <br>
 **Other Properties Related to Output:** [None] <br>
 
@@ -41,35 +41,35 @@ Mitigation: Review and scan skill before deployment. <br>
 
 
 ## Evaluation Tasks: <br>
-Evaluated against 7 positive evaluation tasks in isolated k8s-sandbox pods. <br>
+7 evaluation tasks (7 positive) from a curated skill-evaluator dataset snapshot. <br>
 
 ## Evaluation Metrics Used: <br>
 Reported benchmark dimensions: <br>
 - Security: Checks for unsafe operations, secret leakage, and unauthorized access. <br>
-- Correctness: Checks final-answer correctness against reference answers. <br>
+- Correctness: Checks final-answer correctness against the reference answer. <br>
 - Discoverability: Checks whether the expected skill was found and executed when needed. <br>
-- Effectiveness: Checks whether the skill helped complete the user's goal and expected workflow (goal completion + behavior adherence). <br>
+- Effectiveness: Checks whether the skill helped complete the user's goal (goal completion and expected workflow adherence). <br>
 - Efficiency: Checks routing quality, workspace-aware skill reads, and productive tool use. <br>
 
 Underlying evaluation signals used in this run: <br>
-- `security`: Verifies absence of unsafe operations, secret leakage, and unauthorized access. <br>
-- `accuracy`: Verifies final-answer correctness against the reference answer. <br>
-- `skill_execution`: Verifies the expected skill was found and executed. <br>
-- `goal_accuracy`: Verifies whether the user's goal was achieved. <br>
-- `behavior_check`: Verifies whether the expected workflow behavior was followed. <br>
-- `skill_efficiency`: Verifies routing quality, workspace-aware skill reads, and productive tool use. <br>
+- `security`: Unsafe operations, secret leakage, and unauthorized access. <br>
+- `skill_execution`: Whether the expected skill was found and executed. <br>
+- `accuracy`: Final-answer correctness against the reference answer. <br>
+- `goal_accuracy`: Whether the user's goal was achieved. <br>
+- `behavior_check`: Whether the expected workflow behavior was followed. <br>
+- `skill_efficiency`: Routing quality, workspace-aware skill reads, and productive tool use. <br>
 
 
 
 ## Evaluation Results: <br>
 | Measure | Claude Code (Baseline → Skill Uplift) | Codex (Baseline → Skill Uplift) |
 |---|---:|---:|
-| Overall | 37% → 87% (+50 points) | 37% → 79% (+42 points) |
-| Security | 57% → 100% (+43 points) | 71% → 71% (±0 points) |
-| Correctness | 37% → 94% (+57 points) | 34% → 91% (+57 points) |
-| Discoverability | 49% → 98% (+49 points) | 31% → 74% (+43 points) |
-| Effectiveness | 19% → 62% (+43 points) | 15% → 67% (+52 points) |
-| Efficiency | 22% → 81% (+60 points) | 33% → 93% (+59 points) |
+| Overall | 39% → 85% (+46 points) | 38% → 71% (+33 points) |
+| Security | 71% → 100% (+29 points) | 71% → 50% (-21 points) |
+| Correctness | 37% → 89% (+51 points) | 34% → 89% (+54 points) |
+| Discoverability | 50% → 98% (+48 points) | 37% → 74% (+38 points) |
+| Effectiveness | 12% → 56% (+43 points) | 11% → 53% (+42 points) |
+| Efficiency | 24% → 84% (+59 points) | 39% → 91% (+52 points) |
 
 ## Skill Version(s): <br>
 1.1.0 (source: pyproject.toml) <br>

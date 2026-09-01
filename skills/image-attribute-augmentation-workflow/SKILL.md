@@ -138,7 +138,7 @@ to say "set up" or ask them to name the skill.
 "reinstall", "redeploy", "full setup"): invoke the environment-setup skill even if all checks
 pass, and confirm the planned commands first.
 
-**If all checks pass** and the user just wants to run the workflow: proceed directly to payload
+**If all checks pass** and the user only wants to run the workflow: proceed directly to payload
 and trigger.
 
 ## Bundled tools

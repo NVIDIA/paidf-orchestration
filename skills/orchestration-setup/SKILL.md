@@ -421,5 +421,5 @@ and wait for explicit approval — even if controller pods appear healthy. If th
 also asks to run a workflow, continue with that workflow's own skill procedure (for example
 `image-attribute-augmentation-workflow` or `event-video-generation-workflow`) only after the user
 approves or declines the install steps and compute and controller readiness are established; do
-not ask the user to name or re-invoke another skill. Never submit a workflow merely because
+not ask the user to name or re-invoke another skill. Never submit a workflow solely because
 `kubectl get nodes` succeeds.
