@@ -12,15 +12,29 @@ from __future__ import annotations
 
 import asyncio
 import inspect
+import logging
+import time
 from collections.abc import AsyncIterator
 from typing import Any
 
 from airflow.models.xcom import XCom
-from airflow.sdk.execution_time.comms import GetXCom, XComResult
+from airflow.sdk.execution_time.comms import GetTICount, GetXCom, TICount, XComResult
 from airflow.triggers.base import BaseTrigger, TriggerEvent
+from airflow.utils.state import TaskInstanceState
+
+log = logging.getLogger(__name__)
+
+# Terminal states in which the watched task will never publish the XCom we're waiting
+# on. If the watched task lands here first, polling for its XCom would wait forever.
+WATCHED_TASK_DEAD_END_STATES = [
+    TaskInstanceState.FAILED,
+    TaskInstanceState.UPSTREAM_FAILED,
+    TaskInstanceState.SKIPPED,
+    TaskInstanceState.REMOVED,
+]
 
 
-async def _supervisor_comms_request(msg: GetXCom) -> Any:
+async def _supervisor_comms_request(msg: Any) -> Any:
     """Send a comms request via SUPERVISOR_COMMS without blocking the event loop."""
     from airflow.sdk.execution_time.task_runner import SUPERVISOR_COMMS
 
@@ -54,6 +68,32 @@ async def _xcom_get_one(
     if isinstance(msg, XComResult) and msg.value is not None:
         return XCom.deserialize_value(msg)
     return None
+
+
+async def _watched_task_reached_dead_end(
+    *,
+    dag_id: str,
+    run_id: str,
+    task_id: str,
+) -> bool:
+    """True if the watched task landed in a state that will never publish XCom."""
+    msg = await _supervisor_comms_request(
+        GetTICount(
+            dag_id=dag_id,
+            run_ids=[run_id],
+            task_ids=[task_id],
+            states=[state.value for state in WATCHED_TASK_DEAD_END_STATES],
+        ),
+    )
+    if isinstance(msg, TICount):
+        return msg.count > 0
+    log.warning(
+        "GetTICount returned unexpected response type %s for task %r; "
+        "skipping dead-end check this cycle",
+        type(msg).__name__,
+        task_id,
+    )
+    return False
 
 
 class XComWaitTrigger(BaseTrigger):
@@ -95,10 +135,13 @@ class XComWaitTrigger(BaseTrigger):
         )
 
     async def run(self) -> AsyncIterator[TriggerEvent]:
-        import time
-
         start = time.monotonic()
         while True:
+            # XCom is checked first so the success path never pays the extra
+            # GetTICount round-trip. The race where XCom arrives between the
+            # two calls cannot cause a false error: startup tasks only push XCom
+            # then transition to DEFERRED (not a dead-end state), so both checks
+            # will not simultaneously disagree in practice.
             value = await _xcom_get_one(
                 dag_id=self.dag_id,
                 run_id=self.run_id,
@@ -109,11 +152,28 @@ class XComWaitTrigger(BaseTrigger):
                 yield TriggerEvent({"xcom_value": value})
                 return
 
+            if await _watched_task_reached_dead_end(
+                dag_id=self.dag_id,
+                run_id=self.run_id,
+                task_id=self.watch_task_id,
+            ):
+                yield TriggerEvent(
+                    {
+                        "error": (
+                            f"{self.watch_task_id!r} reached a terminal state without "
+                            f"publishing XCom key {self.watch_key!r}"
+                        )
+                    }
+                )
+                return
+
             if self.timeout_seconds is not None:
                 elapsed = time.monotonic() - start
                 if elapsed >= self.timeout_seconds:
                     yield TriggerEvent(
-                        {"error": f"Timeout after {self.timeout_seconds}s waiting for XCom(s)"}
+                        {
+                            "error": f"Timeout after {self.timeout_seconds}s waiting for XCom(s)"
+                        }
                     )
                     return
 
