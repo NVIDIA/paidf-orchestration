@@ -1,6 +1,19 @@
 ---
-name: image-attribute-augmentation-workflow
+name: physical-ai-image-attribute-augmentation
 description: Run the PAIDF Orchestration Image Attribute Augmentation DAG on Kubernetes - person-crop clothing augmentation, attribute search, and augmented dataset generation. Select for requests about image attribute augmentation, person attribute search, person re-identification data, clothing augmentation, attribute captions, augmentation payloads, run status, or result retrieval. Runs environment setup first when controller readiness is unknown. Not for video or defect-image generation.
+version: "1.0.0"
+license: CC-BY-4.0 AND Apache-2.0
+metadata:
+  owner: NVIDIA
+  service: physical-ai-data-factory
+  version: 1.0.0
+  reviewed: '2026-09-02'
+  author: NVIDIA
+  tags:
+    - physical-ai
+    - paidf-orchestration
+    - image-attribute-augmentation
+    - cosmos
 ---
 
 # PAIDF Orchestration — Image Attribute Augmentation

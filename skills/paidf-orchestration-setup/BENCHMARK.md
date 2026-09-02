@@ -1,4 +1,4 @@
-# Skill Benchmark: event-video-generation-workflow
+# Skill Benchmark: paidf-orchestration-setup
 
 > ✅ **Overall verdict: PASS — Recommended for publication**
 
@@ -8,12 +8,12 @@ Recommended for publication based on the completed evaluation evidence in this r
 
 ## Evaluation Metadata
 
-- Skill: `event-video-generation-workflow`
-- Evaluation date: 2026-09-01
+- Skill: `paidf-orchestration-setup`
+- Evaluation date: 2026-09-02
 - Evaluator version: `1.3.2`
 - Agents: Claude Code (`aws/anthropic/bedrock-claude-opus-4-8`), Codex (`openai/openai/gpt-5.5`)
-- Tasks: 14 evaluation tasks (12 positive, 2 negative)
-- Dataset digest: `sha256:ea328889f34c012027497ce72d99e3c10d033229dbf75a5a971cf8f16ee236f0` (skill-evaluator-dataset-snapshot/1)
+- Tasks: 10 evaluation tasks (10 positive)
+- Dataset digest: `sha256:044f521e3fa171101c63fc34ccc10a1f598c8fe3728cca5fb364d58754e9a548` (skill-evaluator-dataset-snapshot/1)
 - Attempts per task: 1
 - Environment: `k8s-sandbox`
 - Tier 3 evidence: required for publication
@@ -25,9 +25,9 @@ Each task attempt ran in its own isolated sandbox pod.
 - Validation status: `passed`
 - Report generation: `complete`
 - Evaluator version: `1.3.2`
-- Git commit: `fed6620cbc44a5e8d7e78ab0dd044258b667efc7`
+- Git commit: `82224ec75d08e41cc5b92f7bf935f69c0def4607`
 - Content type: requested `auto`, detected `skill`
-- Container image: `gitlab-master.nvidia.com:5005/nvcarps/ci-group/nvcarps-ci/skillevaluator-ci:sha-fed6620cbc44a5e8d7e78ab0dd044258b667efc7`
+- Container image: `gitlab-master.nvidia.com:5005/nvcarps/ci-group/nvcarps-ci/skillevaluator-ci:sha-82224ec75d08e41cc5b92f7bf935f69c0def4607`
 - Container image digest: `not recorded`
 - Tier 3: requested `true`, executed `true`, status `succeeded`
 
@@ -45,12 +45,12 @@ The three-tier evaluation checks whether the skill:
 
 | Measure | Claude Code (Baseline → Skill Uplift) | Codex (Baseline → Skill Uplift) |
 |---|---:|---:|
-| Overall | 48% → 87% (+39 points) | 46% → 83% (+37 points) |
-| Security | 79% → 100% (+21 points) | 82% → 89% (+7 points) |
-| Correctness | 36% → 93% (+57 points) | 33% → 83% (+50 points) |
-| Discoverability | 41% → 84% (+43 points) | 33% → 83% (+50 points) |
-| Effectiveness | 49% → 77% (+29 points) | 43% → 72% (+29 points) |
-| Efficiency | 38% → 81% (+43 points) | 40% → 88% (+47 points) |
+| Overall | 64% → 93% (+28 points) | 62% → 71% (+10 points) |
+| Security | 90% → 90% (±0 points) | 80% → 90% (+10 points) |
+| Correctness | 100% → 100% (±0 points) | 100% → 100% (±0 points) |
+| Discoverability | 36% → 94% (+58 points) | 37% → 51% (+14 points) |
+| Effectiveness | 68% → 92% (+24 points) | 69% → 78% (+10 points) |
+| Efficiency | 28% → 88% (+59 points) | 22% → 36% (+15 points) |
 
 **How to read this table:** baseline is the same task attempted without the target skill. Uplift is `skill score - baseline score`, shown in percentage points.
 
@@ -60,18 +60,19 @@ Example: `47% → 92% (+45 points)` means the skill-assisted run scored 92%, 45 
 
 | Tier | Purpose | Status | Evidence |
 |---|---|---|---|
-| Tier 1 | Static validation | **PASSED WITH OBSERVATIONS** | 1 validator(s); 3 finding(s) |
+| Tier 1 | Static validation | **PASSED WITH OBSERVATIONS** | 1 validator(s); 4 finding(s) |
 | Tier 2 | Semantic deduplication | **NOT RUN** | No result was recorded |
-| Tier 3 | Live agent evaluation | **PASS** | 2 agent(s); 14 task(s) |
+| Tier 3 | Live agent evaluation | **PASS** | 2 agent(s); 10 task(s) |
 
 ## Findings and Observations
 
 <details>
 <summary>Show detailed findings and successful checks</summary>
 
-- **MEDIUM** SCHEMA/body_recommended_section: Missing recommended section: '## Instructions' (`skills/event-video-generation-workflow/SKILL.md`)
-- **MEDIUM** SCHEMA/body_recommended_section: Missing recommended section: '## Examples' (`skills/event-video-generation-workflow/SKILL.md`)
-- **MEDIUM** SCHEMA/author_missing: Author not specified in metadata (`skills/event-video-generation-workflow/SKILL.md`)
+- **MEDIUM** SCHEMA/frontmatter_field_placement: Root field 'version' is ignored; use 'metadata.version' (`skills/paidf-orchestration-setup/SKILL.md`)
+- **MEDIUM** SCHEMA/body_recommended_section: Missing recommended section: '## Instructions' (`skills/paidf-orchestration-setup/SKILL.md`)
+- **MEDIUM** SCHEMA/body_recommended_section: Missing recommended section: '## Examples' (`skills/paidf-orchestration-setup/SKILL.md`)
+- **LOW** SCHEMA/author_format: Author must be of the form 'Name <email@host>' (`skills/paidf-orchestration-setup/SKILL.md`)
 
 </details>
 

@@ -1,6 +1,19 @@
 ---
-name: event-video-generation-workflow
+name: physical-ai-event-video-generation
 description: Run the PAIDF Orchestration Event Video Generation DAG on Kubernetes - image-to-video anomaly generation, auto-labeling, and anomaly dataset generation. Select for requests about event video generation, anomaly video generation, image-to-video synthesis, Cosmos3 image2video, anomaly dataset creation, safety/surveillance SDG, or generating person-falling, person-climbing, person-running, fighting, smoking/vaping, fire/smoke, or shoplifting video clips from a seed image. Runs environment setup first when controller readiness is unknown. Not for person-crop clothing/attribute augmentation (that is image-attribute-augmentation-workflow) and not for video style transfer.
+version: "1.0.0"
+license: CC-BY-4.0 AND Apache-2.0
+metadata:
+  owner: NVIDIA
+  service: physical-ai-data-factory
+  version: 1.0.0
+  reviewed: '2026-09-02'
+  author: NVIDIA
+  tags:
+    - physical-ai
+    - paidf-orchestration
+    - event-video-generation
+    - cosmos
 ---
 
 # PAIDF Orchestration — Event Video Generation

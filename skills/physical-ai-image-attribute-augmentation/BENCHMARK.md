@@ -1,4 +1,4 @@
-# Skill Benchmark: orchestration-setup
+# Skill Benchmark: physical-ai-image-attribute-augmentation
 
 > ✅ **Overall verdict: PASS — Recommended for publication**
 
@@ -8,12 +8,12 @@ Recommended for publication based on the completed evaluation evidence in this r
 
 ## Evaluation Metadata
 
-- Skill: `orchestration-setup`
-- Evaluation date: 2026-09-01
+- Skill: `physical-ai-image-attribute-augmentation`
+- Evaluation date: 2026-09-02
 - Evaluator version: `1.3.2`
 - Agents: Claude Code (`aws/anthropic/bedrock-claude-opus-4-8`), Codex (`openai/openai/gpt-5.5`)
-- Tasks: 10 evaluation tasks (10 positive)
-- Dataset digest: `sha256:044f521e3fa171101c63fc34ccc10a1f598c8fe3728cca5fb364d58754e9a548` (skill-evaluator-dataset-snapshot/1)
+- Tasks: 13 evaluation tasks (11 positive, 2 negative)
+- Dataset digest: `sha256:99c88f504e8f80580bc8aeaaa4fa48a2cbf2e11790619156b347231167b6b96b` (skill-evaluator-dataset-snapshot/1)
 - Attempts per task: 1
 - Environment: `k8s-sandbox`
 - Tier 3 evidence: required for publication
@@ -25,9 +25,9 @@ Each task attempt ran in its own isolated sandbox pod.
 - Validation status: `passed`
 - Report generation: `complete`
 - Evaluator version: `1.3.2`
-- Git commit: `fed6620cbc44a5e8d7e78ab0dd044258b667efc7`
+- Git commit: `82224ec75d08e41cc5b92f7bf935f69c0def4607`
 - Content type: requested `auto`, detected `skill`
-- Container image: `gitlab-master.nvidia.com:5005/nvcarps/ci-group/nvcarps-ci/skillevaluator-ci:sha-fed6620cbc44a5e8d7e78ab0dd044258b667efc7`
+- Container image: `gitlab-master.nvidia.com:5005/nvcarps/ci-group/nvcarps-ci/skillevaluator-ci:sha-82224ec75d08e41cc5b92f7bf935f69c0def4607`
 - Container image digest: `not recorded`
 - Tier 3: requested `true`, executed `true`, status `succeeded`
 
@@ -45,12 +45,12 @@ The three-tier evaluation checks whether the skill:
 
 | Measure | Claude Code (Baseline → Skill Uplift) | Codex (Baseline → Skill Uplift) |
 |---|---:|---:|
-| Overall | 62% → 93% (+31 points) | 61% → 64% (+3 points) |
-| Security | 80% → 90% (+10 points) | 80% → 80% (±0 points) |
-| Correctness | 100% → 100% (±0 points) | 100% → 100% (±0 points) |
-| Discoverability | 37% → 94% (+57 points) | 39% → 41% (+2 points) |
-| Effectiveness | 68% → 89% (+22 points) | 70% → 72% (+2 points) |
-| Efficiency | 24% → 93% (+68 points) | 18% → 29% (+11 points) |
+| Overall | 52% → 77% (+25 points) | 53% → 75% (+22 points) |
+| Security | 85% → 100% (+15 points) | 81% → 96% (+15 points) |
+| Correctness | 43% → 92% (+49 points) | 46% → 85% (+38 points) |
+| Discoverability | 40% → 68% (+28 points) | 37% → 66% (+29 points) |
+| Effectiveness | 46% → 75% (+30 points) | 48% → 66% (+18 points) |
+| Efficiency | 45% → 48% (+4 points) | 53% → 62% (+9 points) |
 
 **How to read this table:** baseline is the same task attempted without the target skill. Uplift is `skill score - baseline score`, shown in percentage points.
 
@@ -60,18 +60,19 @@ Example: `47% → 92% (+45 points)` means the skill-assisted run scored 92%, 45 
 
 | Tier | Purpose | Status | Evidence |
 |---|---|---|---|
-| Tier 1 | Static validation | **PASSED WITH OBSERVATIONS** | 1 validator(s); 3 finding(s) |
+| Tier 1 | Static validation | **PASSED WITH OBSERVATIONS** | 1 validator(s); 4 finding(s) |
 | Tier 2 | Semantic deduplication | **NOT RUN** | No result was recorded |
-| Tier 3 | Live agent evaluation | **PASS** | 2 agent(s); 10 task(s) |
+| Tier 3 | Live agent evaluation | **PASS** | 2 agent(s); 13 task(s) |
 
 ## Findings and Observations
 
 <details>
 <summary>Show detailed findings and successful checks</summary>
 
-- **MEDIUM** SCHEMA/body_recommended_section: Missing recommended section: '## Instructions' (`skills/orchestration-setup/SKILL.md`)
-- **MEDIUM** SCHEMA/body_recommended_section: Missing recommended section: '## Examples' (`skills/orchestration-setup/SKILL.md`)
-- **MEDIUM** SCHEMA/author_missing: Author not specified in metadata (`skills/orchestration-setup/SKILL.md`)
+- **MEDIUM** SCHEMA/frontmatter_field_placement: Root field 'version' is ignored; use 'metadata.version' (`skills/physical-ai-image-attribute-augmentation/SKILL.md`)
+- **MEDIUM** SCHEMA/body_recommended_section: Missing recommended section: '## Instructions' (`skills/physical-ai-image-attribute-augmentation/SKILL.md`)
+- **MEDIUM** SCHEMA/body_recommended_section: Missing recommended section: '## Examples' (`skills/physical-ai-image-attribute-augmentation/SKILL.md`)
+- **LOW** SCHEMA/author_format: Author must be of the form 'Name <email@host>' (`skills/physical-ai-image-attribute-augmentation/SKILL.md`)
 
 </details>
 
